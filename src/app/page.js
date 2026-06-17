@@ -313,6 +313,7 @@ export default function Home() {
             projectStatusFilter={projectStatusFilter}
             setProjectStatusFilter={setProjectStatusFilter}
             filteredProjects={tab === 'assigned-projects' ? assignedProjects : filteredProjects}
+            projects={projects}
             isClient={isClient}
             isStaff={isStaff}
             setShowProjectModal={setShowProjectModal}
@@ -360,6 +361,7 @@ export default function Home() {
             taskFilter={taskFilter}
             setTaskFilter={setTaskFilter}
             filteredTasks={filteredTasks}
+            projects={projects}
             isClient={isClient}
             isStaff={isStaff}
             currentUser={currentUser}

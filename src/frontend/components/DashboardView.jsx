@@ -1,5 +1,4 @@
 import React from 'react';
-import { Folder, CheckSquare, ClipboardList, Activity, Calendar, Users, FileText, TrendingUp, Plus, UserPlus, Eye } from 'lucide-react';
 
 export default function DashboardView({
   currentUser,
@@ -19,13 +18,15 @@ export default function DashboardView({
   const isClient = currentUser?.role === 'client';
 
   const activeProjects = projects.filter(p => p.status === 'active');
-  const completedProjects = projects.filter(p => p.status === 'completed');
   const pendingApprovals = approvals.filter(a => a.status === 'pending');
+  const myApprovals = approvals.filter(a => a.client_id === currentUser?.id && a.status === 'pending');
   const pendingTasks = tasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
   const overdueTasks = tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed');
   const myTasks = tasks.filter(t => t.assigned_to === currentUser?.id && t.status !== 'completed');
-  const myApprovals = approvals.filter(a => a.client_id === currentUser?.id && a.status === 'pending');
-  const recentDrawings = [...drawings].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 4);
+
+  const displayApprovals = isClient ? myApprovals : pendingApprovals;
+  const displayTasksCount = isStaff ? myTasks.length : pendingTasks.length;
+  const displayOverdueCount = isStaff ? overdueTasks.filter(t => t.assigned_to === currentUser?.id).length : overdueTasks.length;
 
   const getHour = () => {
     const h = new Date().getHours();
@@ -34,304 +35,273 @@ export default function DashboardView({
     return 'evening';
   };
 
-  // KPI Cards config per role
-  const adminKPIs = [
-    { label: 'Total Projects', value: projects.length, icon: Folder, color: 'text-blue-400', bg: 'bg-blue-950/20 border-blue-900/40' },
-    { label: 'Active Projects', value: activeProjects.length, icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-950/20 border-emerald-900/40', sub: `${completedProjects.length} completed` },
-    { label: 'Pending Approvals', value: pendingApprovals.length, icon: CheckSquare, color: 'text-amber-400', bg: 'bg-amber-950/20 border-amber-900/40', urgent: pendingApprovals.length > 0 },
-    { label: 'Total Users', value: users.length, icon: Users, color: 'text-purple-400', bg: 'bg-purple-950/20 border-purple-900/40' },
-  ];
-
-  const architectKPIs = [
-    { label: 'Assigned Projects', value: activeProjects.length, icon: Folder, color: 'text-blue-400', bg: 'bg-blue-950/20 border-blue-900/40' },
-    { label: 'Pending Tasks', value: myTasks.length, icon: ClipboardList, color: 'text-amber-400', bg: 'bg-amber-950/20 border-amber-900/40' },
-    { label: 'Drawings Uploaded', value: drawings.length, icon: FileText, color: 'text-purple-400', bg: 'bg-purple-950/20 border-purple-900/40' },
-    { label: 'Approval Requests', value: pendingApprovals.length, icon: CheckSquare, color: 'text-emerald-400', bg: 'bg-emerald-950/20 border-emerald-900/40' },
-  ];
-
-  const staffKPIs = [
-    { label: 'My Tasks', value: myTasks.length, icon: ClipboardList, color: 'text-blue-400', bg: 'bg-blue-950/20 border-blue-900/40' },
-    { label: 'Overdue', value: overdueTasks.filter(t => t.assigned_to === currentUser?.id).length, icon: Activity, color: 'text-rose-400', bg: 'bg-rose-950/20 border-rose-900/40', urgent: true },
-    { label: 'Site Logs', value: siteLogs.length, icon: Activity, color: 'text-emerald-400', bg: 'bg-emerald-950/20 border-emerald-900/40' },
-    { label: 'Active Projects', value: activeProjects.length, icon: Folder, color: 'text-purple-400', bg: 'bg-purple-950/20 border-purple-900/40' },
-  ];
-
-  const clientKPIs = [
-    { label: 'Active Projects', value: activeProjects.length, icon: Folder, color: 'text-blue-400', bg: 'bg-blue-950/20 border-blue-900/40' },
-    { label: 'Drawings Pending Review', value: myApprovals.length, icon: FileText, color: 'text-amber-400', bg: 'bg-amber-950/20 border-amber-900/40', urgent: myApprovals.length > 0 },
-    { label: 'Completed Projects', value: completedProjects.length, icon: CheckSquare, color: 'text-emerald-400', bg: 'bg-emerald-950/20 border-emerald-900/40' },
-    { label: 'Total Drawings', value: drawings.length, icon: FileText, color: 'text-purple-400', bg: 'bg-purple-950/20 border-purple-900/40' },
-  ];
-
-  const kpis = isAdmin ? adminKPIs : isArchitect ? architectKPIs : isStaff ? staffKPIs : clientKPIs;
-
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 animate-fade-in text-on-background">
+      {/* Welcome Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-white">Good {getHour()}, {currentUser?.name?.split(' ')[0]}!</h2>
-          <p className="text-slate-400 text-sm mt-1">Here is what's happening across your practice today.</p>
+          <h2 className="font-headline-lg text-headline-lg text-on-surface">Studio Overview</h2>
+          <p className="font-body-md text-body-md text-secondary">Good {getHour()}, {currentUser?.name?.split(' ')[0]}. Here is what is happening across your projects today.</p>
         </div>
-        {/* Quick Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex gap-2 shrink-0">
           {(isAdmin || isArchitect) && (
-            <button
-              onClick={() => setShowProjectModal && setShowProjectModal(true)}
-              className="flex items-center gap-2 py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white transition-all cursor-pointer shadow-lg shadow-blue-600/20"
+            <button 
+              onClick={() => setShowProjectModal?.(true)}
+              className="px-4 py-2 rounded-lg text-body-md font-bold bg-primary text-white hover:opacity-90 transition-all active:scale-95 shadow-sm cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
-              Create Project
+              New Project
             </button>
           )}
           {isAdmin && (
-            <button
-              onClick={() => setShowUserModal && setShowUserModal(true)}
-              className="flex items-center gap-2 py-2 px-4 rounded-lg bg-slate-800 hover:bg-slate-750 border border-slate-700 text-xs font-bold text-white transition-all cursor-pointer"
+            <button 
+              onClick={() => setShowUserModal?.(true)}
+              className="px-4 py-2 rounded-lg text-body-md font-medium border border-border-subtle bg-white hover:bg-surface-container-low transition-colors cursor-pointer"
             >
-              <UserPlus className="w-4 h-4" />
               Invite User
             </button>
           )}
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-slate-100">
-        {kpis.map((kpi, i) => {
-          const Icon = kpi.icon;
-          return (
-            <div key={i} className={`bg-slate-900 border ${kpi.urgent ? 'border-amber-900/50' : 'border-slate-800'} p-5 rounded-xl flex items-center justify-between shadow-sm hover:border-slate-700 transition-all`}>
-              <div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none">{kpi.label}</p>
-                <p className="text-2xl font-black text-white mt-2">{kpi.value}</p>
-                {kpi.sub && <p className="text-[10px] text-slate-600 mt-1">{kpi.sub}</p>}
-              </div>
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center border ${kpi.bg}`}>
-                <Icon className={`w-5 h-5 ${kpi.color}`} />
-              </div>
+      {/* KPI Row (Bento Style) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="premium-card p-5 rounded-xl border-l-4 border-l-primary flex flex-col justify-between h-[120px]">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-secondary font-label-md text-label-md">Active Projects</span>
+            <span className="material-symbols-outlined text-primary text-[20px]">architecture</span>
+          </div>
+          <div>
+            <div className="text-display font-display text-[32px] leading-none mb-1 font-extrabold">{projects.length}</div>
+            <div className="flex items-center text-success text-label-sm font-label-sm">
+              <span className="material-symbols-outlined text-[14px]">trending_up</span>
+              <span className="ml-1">+{activeProjects.length} active</span>
             </div>
-          );
-        })}
+          </div>
+        </div>
+
+        <div className="premium-card p-5 rounded-xl border-l-4 border-l-warning flex flex-col justify-between h-[120px]">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-secondary font-label-md text-label-md">Pending Approvals</span>
+            <span className="material-symbols-outlined text-warning text-[20px]">pending_actions</span>
+          </div>
+          <div>
+            <div className="text-display font-display text-[32px] leading-none mb-1 font-extrabold">{displayApprovals.length}</div>
+            <div className="flex items-center text-secondary text-label-sm font-label-sm">
+              <span>Requires attention</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="premium-card p-5 rounded-xl border-l-4 border-l-error flex flex-col justify-between h-[120px]">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-secondary font-label-md text-label-md">Open Tasks</span>
+            <span className="material-symbols-outlined text-error text-[20px]">assignment_late</span>
+          </div>
+          <div>
+            <div className="text-display font-display text-[32px] leading-none mb-1 font-extrabold">{displayTasksCount}</div>
+            <div className="flex items-center text-error text-label-sm font-label-sm">
+              <span className="material-symbols-outlined text-[14px]">priority_high</span>
+              <span className="ml-1">{displayOverdueCount} overdue</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="premium-card p-5 rounded-xl border-l-4 border-l-success flex flex-col justify-between h-[120px]">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-secondary font-label-md text-label-md">Site Visits</span>
+            <span className="material-symbols-outlined text-success text-[20px]">location_on</span>
+          </div>
+          <div>
+            <div className="text-display font-display text-[32px] leading-none mb-1 font-extrabold">{siteLogs.length}</div>
+            <div className="flex items-center text-secondary text-label-sm font-label-sm">
+              <span>Recorded updates</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Role-specific widgets */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Col 1-2: Projects / Tasks / Approvals widget */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Admin & Architect: Recent Activity / Project Overview */}
-          {(isAdmin || isArchitect) && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Folder className="w-4 h-4 text-blue-400" />
-                  Active Projects
-                </h3>
-                <button onClick={() => setTab('projects')} className="text-xs text-blue-400 font-bold hover:underline cursor-pointer">View All</button>
-              </div>
-              <div className="divide-y divide-slate-850">
-                {activeProjects.slice(0, 4).map(p => (
-                  <div key={p.id} className="py-3 flex items-center justify-between gap-4 first:pt-0 last:pb-0">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-white truncate">{p.name}</p>
-                      <p className="text-[10px] text-slate-500 truncate mt-0.5">{p.location || '—'} · Client: {p.client_name}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[9px] px-2 py-0.5 font-bold uppercase rounded border bg-emerald-950/20 text-emerald-450 border-emerald-900/50">active</span>
-                    </div>
-                  </div>
-                ))}
-                {activeProjects.length === 0 && (
-                  <p className="text-xs text-slate-500 py-4 text-center">No active projects</p>
-                )}
-              </div>
+      {/* Widgets Grid */}
+      <div className="grid grid-cols-12 gap-6 pb-8">
+        {/* Recent Activity Timeline (Col Span 4) */}
+        <div className="col-span-12 lg:col-span-4 premium-card rounded-xl overflow-hidden flex flex-col h-[500px]">
+          <div className="px-5 py-4 border-b border-border-subtle bg-surface-container-lowest flex justify-between items-center shrink-0">
+            <h3 className="text-body-lg font-bold text-ink-black">Recent Activity</h3>
+            {isAdmin && (
+              <button onClick={() => setTab('activity')} className="text-primary text-label-md font-medium hover:underline cursor-pointer">View all</button>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto p-5 space-y-6 scroll-hide">
+            <div className="relative pl-8">
+              <div className="absolute left-[3px] top-2 bottom-[-32px] w-[1px] bg-border-subtle"></div>
+              <div className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-primary border-2 border-white box-content"></div>
+              <p className="text-body-md font-semibold text-on-surface">Structural Plan Update</p>
+              <p className="text-body-md text-secondary">Uploaded by <span className="text-primary font-medium">Marco Rossi</span> for Project "Azure Heights".</p>
+              <span className="text-label-md text-slate-400">12 mins ago</span>
             </div>
-          )}
-
-          {/* Staff: My Tasks */}
-          {isStaff && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <ClipboardList className="w-4 h-4 text-blue-400" />
-                  My Assigned Tasks
-                </h3>
-                <button onClick={() => setTab('tasks')} className="text-xs text-blue-400 font-bold hover:underline cursor-pointer">View All</button>
-              </div>
-              <div className="space-y-2">
-                {myTasks.slice(0, 5).map(t => (
-                  <div key={t.id} className="flex items-center justify-between p-3 bg-slate-950/40 rounded-lg border border-slate-850">
-                    <div>
-                      <p className="text-xs font-bold text-white">{t.title}</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">Due {t.due_date ? new Date(t.due_date).toLocaleDateString() : 'N/A'}</p>
-                    </div>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded uppercase font-bold border ${
-                      t.priority === 'high' ? 'bg-rose-950/20 text-rose-400 border-rose-900/40' :
-                      t.priority === 'medium' ? 'bg-amber-950/20 text-amber-400 border-amber-900/40' :
-                      'bg-blue-950/20 text-blue-400 border-blue-900/40'
-                    }`}>{t.priority}</span>
-                  </div>
-                ))}
-                {myTasks.length === 0 && <p className="text-xs text-slate-500 text-center py-4">No pending tasks</p>}
-              </div>
+            <div className="relative pl-8">
+              <div className="absolute left-[3px] top-2 bottom-[-32px] w-[1px] bg-border-subtle"></div>
+              <div className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-warning border-2 border-white box-content"></div>
+              <p className="text-body-md font-semibold text-on-surface">New Comment</p>
+              <p className="text-body-md text-secondary">"The cantilever dimension seems off in section B-B." - <span class="text-primary font-medium">Elena Vance</span></p>
+              <span className="text-label-md text-slate-400">2 hours ago</span>
             </div>
-          )}
-
-          {/* Client: Drawings Pending Review */}
-          {isClient && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-blue-400" />
-                  Drawings Pending Your Review
-                </h3>
-                <button onClick={() => setTab('approvals')} className="text-xs text-blue-400 font-bold hover:underline cursor-pointer">View All</button>
-              </div>
-              {myApprovals.length > 0 ? (
-                <div className="space-y-3">
-                  {myApprovals.slice(0, 4).map(a => {
-                    const drawing = drawings.find(d => d.id === a.drawing_id);
-                    return (
-                      <div key={a.id} className="flex items-center justify-between p-3 bg-slate-950/40 rounded-lg border border-amber-900/30">
-                        <div>
-                          <p className="text-xs font-bold text-white">{drawing?.name || 'Drawing'}</p>
-                          <p className="text-[10px] text-slate-500 mt-0.5 capitalize">{drawing?.category}</p>
-                        </div>
-                        <button
-                          onClick={() => setTab('approvals')}
-                          className="flex items-center gap-1 text-[10px] font-bold text-amber-400 hover:text-amber-300 cursor-pointer"
-                        >
-                          <Eye className="w-3 h-3" />
-                          Review
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500 text-center py-4">No drawings awaiting your review</p>
-              )}
+            <div className="relative pl-8">
+              <div className="absolute left-[3px] top-2 bottom-[-32px] w-[1px] bg-border-subtle"></div>
+              <div className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-success border-2 border-white box-content"></div>
+              <p className="text-body-md font-semibold text-on-surface">Drawing Approved</p>
+              <p className="text-body-md text-secondary">Client approved "Lobby Interior Renderings".</p>
+              <span className="text-label-md text-slate-400">5 hours ago</span>
             </div>
-          )}
+            <div className="relative pl-8">
+              <div className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-secondary border-2 border-white box-content"></div>
+              <p className="text-body-md font-semibold text-on-surface">Site Log Created</p>
+              <p className="text-body-md text-secondary">Foundation inspection completed at "North Dock".</p>
+              <span className="text-label-md text-slate-400">Yesterday</span>
+            </div>
+          </div>
+        </div>
 
-          {/* Pending Approvals — Admin & Architect */}
-          {(isAdmin || isArchitect) && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <CheckSquare className="w-4 h-4 text-amber-400" />
-                  Pending Approvals
-                  {pendingApprovals.length > 0 && (
-                    <span className="text-[9px] bg-amber-950/30 border border-amber-900/40 text-amber-400 font-black px-1.5 py-0.5 rounded">
-                      {pendingApprovals.length} awaiting
-                    </span>
-                  )}
-                </h3>
-                <button onClick={() => setTab('approvals')} className="text-xs text-blue-400 font-bold hover:underline cursor-pointer">View All</button>
-              </div>
-              <div className="space-y-2">
-                {pendingApprovals.slice(0, 3).map(a => {
-                  const drawing = drawings.find(d => d.id === a.drawing_id);
+        {/* Pending Approvals & Deadlines (Col Span 5) */}
+        <div className="col-span-12 lg:col-span-5 space-y-6 flex flex-col h-[500px]">
+          {/* Pending Approvals Card */}
+          <div className="premium-card rounded-xl overflow-hidden flex-1 flex flex-col min-h-[220px]">
+            <div className="px-5 py-4 border-b border-border-subtle bg-surface-container-lowest flex justify-between items-center shrink-0">
+              <h3 className="text-body-lg font-bold text-ink-black">Pending Approvals</h3>
+              <span className="bg-warning/10 text-warning text-label-sm font-bold px-2 py-0.5 rounded-full border border-warning/20">
+                {displayApprovals.length} Awaiting
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 scroll-hide">
+              <div className="space-y-1">
+                {displayApprovals.slice(0, 3).map((app) => {
+                  const drawing = drawings.find(d => d.id === app.drawing_id);
                   return (
-                    <div key={a.id} className="flex items-center justify-between p-3 bg-slate-950/40 rounded-lg border border-slate-850">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-white truncate">{drawing?.name || 'Drawing'}</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{new Date(a.submitted_at || Date.now()).toLocaleDateString()}</p>
+                    <div 
+                      key={app.id} 
+                      onClick={() => setTab('approvals')}
+                      className="flex items-center justify-between p-3 rounded-lg hover:bg-surface-container-low transition-colors group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-10 w-10 bg-surface-container rounded-lg flex items-center justify-center text-secondary shrink-0">
+                          <span className="material-symbols-outlined text-[20px]">description</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-body-md font-semibold text-ink-black truncate">{drawing?.name || 'Technical Sheet'}</p>
+                          <p className="text-label-md text-secondary truncate">Rev {drawing?.current_revision || 1} • {new Date(app.submitted_at || Date.now()).toLocaleDateString()}</p>
+                        </div>
                       </div>
-                      <span className="text-[9px] font-bold text-amber-400 bg-amber-950/20 border border-amber-900/40 px-2 py-0.5 rounded">Pending</span>
+                      <button className="opacity-0 group-hover:opacity-100 px-3 py-1 bg-primary text-white text-label-sm font-bold rounded-lg transition-opacity cursor-pointer shrink-0">
+                        Review
+                      </button>
                     </div>
                   );
                 })}
-                {pendingApprovals.length === 0 && <p className="text-xs text-slate-500 text-center py-4">No pending approvals</p>}
+                {displayApprovals.length === 0 && (
+                  <p className="p-8 text-xs text-secondary text-center">No pending approvals</p>
+                )}
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Col 3: Upcoming Deadlines + Site Progress */}
-        <div className="space-y-6">
-          {/* Upcoming Deadlines */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-amber-400" />
-                Upcoming Deadlines
-              </h3>
-            </div>
-            <div className="space-y-3">
-              {tasks.filter(t => t.status !== 'completed').slice(0, 5).map(t => {
-                const isOverdue = t.due_date && new Date(t.due_date) < new Date();
-                return (
-                  <div key={t.id} className="flex flex-col gap-1 p-2.5 rounded-lg bg-slate-950/40 border border-slate-850">
-                    <p className="text-xs font-bold text-slate-200 truncate">{t.title}</p>
-                    <div className="flex items-center justify-between mt-1 text-[9px]">
-                      <span className={`font-bold uppercase tracking-wide ${isOverdue ? 'text-rose-400' : 'text-amber-400'}`}>
-                        {isOverdue ? '⚠ Overdue' : 'Due'} {t.due_date ? new Date(t.due_date).toLocaleDateString() : 'N/A'}
-                      </span>
-                      <span className="capitalize text-slate-500">{t.priority}</span>
-                    </div>
-                  </div>
-                );
-              })}
-              {tasks.filter(t => t.status !== 'completed').length === 0 && (
-                <p className="text-xs text-slate-500 text-center py-4">No upcoming deadlines</p>
-              )}
             </div>
           </div>
 
-          {/* Recent Site Updates */}
-          {!isClient && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-emerald-400" />
-                  Site Updates
-                </h3>
-                <button onClick={() => setTab('site-logs')} className="text-xs text-blue-400 font-bold hover:underline cursor-pointer">View All</button>
-              </div>
-              <div className="space-y-3">
-                {siteLogs.slice(0, 3).map(log => (
-                  <div key={log.id} className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-850">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{new Date(log.created_at || Date.now()).toLocaleDateString()}</p>
-                    <p className="text-xs text-slate-300 mt-1 line-clamp-2 leading-relaxed">{log.notes}</p>
-                    {log.photos && log.photos.length > 0 && (
-                      <p className="text-[9px] text-slate-500 mt-1">{log.photos.length} photo{log.photos.length > 1 ? 's' : ''} attached</p>
-                    )}
-                  </div>
-                ))}
-                {siteLogs.length === 0 && <p className="text-xs text-slate-500 text-center py-4">No site logs yet</p>}
-              </div>
+          {/* Upcoming Deadlines Card */}
+          <div className="premium-card rounded-xl overflow-hidden flex-1 flex flex-col min-h-[220px]">
+            <div className="px-5 py-4 border-b border-border-subtle bg-surface-container-lowest flex justify-between items-center shrink-0">
+              <h3 className="text-body-lg font-bold text-ink-black">Upcoming Deadlines</h3>
             </div>
-          )}
+            <div className="flex-1 overflow-y-auto p-4 scroll-hide">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-label-md text-secondary border-b border-border-subtle">
+                    <th className="pb-2 font-semibold">Milestone</th>
+                    <th className="pb-2 font-semibold">Due Date</th>
+                    <th className="pb-2 font-semibold text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="text-body-md text-on-background">
+                  {tasks.filter(t => t.status !== 'completed').slice(0, 3).map((task) => {
+                    const isOverdue = task.due_date && new Date(task.due_date) < new Date();
+                    return (
+                      <tr key={task.id} className="border-b border-border-subtle/50 last:border-none">
+                        <td className="py-2.5 font-medium text-ink-black truncate max-w-[150px]">{task.title}</td>
+                        <td className="py-2.5 text-secondary">{task.due_date ? new Date(task.due_date).toLocaleDateString() : '—'}</td>
+                        <td className="py-2.5 text-right">
+                          <span className={isOverdue ? 'text-error font-semibold' : 'text-warning font-semibold'}>
+                            {isOverdue ? 'Overdue' : 'Pending'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {tasks.filter(t => t.status !== 'completed').length === 0 && (
+                    <tr>
+                      <td colSpan="3" className="py-8 text-xs text-secondary text-center">No active deadlines</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
 
-          {/* Client: Project Timeline */}
-          {isClient && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Folder className="w-4 h-4 text-purple-400" />
-                  Your Projects
-                </h3>
-                <button onClick={() => setTab('projects')} className="text-xs text-blue-400 font-bold hover:underline cursor-pointer">View All</button>
+        {/* Site Progress Feed (Col Span 3) */}
+        <div className="col-span-12 lg:col-span-3 premium-card rounded-xl overflow-hidden flex flex-col h-[500px]">
+          <div className="px-5 py-4 border-b border-border-subtle bg-surface-container-lowest flex justify-between items-center shrink-0">
+            <h3 className="text-body-lg font-bold text-ink-black">Site Progress Feed</h3>
+            <span className="material-symbols-outlined text-secondary text-[20px]">camera_alt</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-hide">
+            <div className="group cursor-pointer" onClick={() => setTab('site-logs')}>
+              <div className="relative aspect-video rounded-lg overflow-hidden mb-2 bg-surface-container">
+                <img 
+                  className="w-full h-full object-cover transition-transform duration-550 group-hover:scale-108" 
+                  alt="West Wing Piling" 
+                  src="https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=400&h=250&fit=crop"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                  <span className="text-white text-label-sm font-bold flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">visibility</span> View Full Log
+                  </span>
+                </div>
               </div>
-              <div className="space-y-2">
-                {projects.slice(0, 4).map(p => (
-                  <div key={p.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/40 border border-slate-850">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-white truncate">{p.name}</p>
-                    </div>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border ${
-                      p.status === 'active' ? 'bg-emerald-950/20 text-emerald-400 border-emerald-900/40' :
-                      p.status === 'completed' ? 'bg-slate-800 text-slate-500 border-slate-700' :
-                      'bg-blue-950/20 text-blue-400 border-blue-900/40'
-                    }`}>{p.status}</span>
-                  </div>
-                ))}
-                {projects.length === 0 && <p className="text-xs text-slate-500 text-center py-4">No projects assigned</p>}
+              <div className="px-1">
+                <p className="text-body-md font-semibold text-ink-black">West Wing Piling</p>
+                <p className="text-label-md text-secondary">Grandview Hotel • 4h ago</p>
               </div>
             </div>
-          )}
+
+            <div className="group cursor-pointer" onClick={() => setTab('site-logs')}>
+              <div className="relative aspect-video rounded-lg overflow-hidden mb-2 bg-surface-container">
+                <img 
+                  className="w-full h-full object-cover transition-transform duration-550 group-hover:scale-108" 
+                  alt="Glass Facade Install" 
+                  src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=400&h=250&fit=crop"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                  <span className="text-white text-label-sm font-bold flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">visibility</span> View Full Log
+                  </span>
+                </div>
+              </div>
+              <div className="px-1">
+                <p className="text-body-md font-semibold text-ink-black">Glass Facade Install</p>
+                <p className="text-label-md text-secondary">The Cube • Yesterday</p>
+              </div>
+            </div>
+
+            <div className="group cursor-pointer" onClick={() => setTab('site-logs')}>
+              <div className="relative aspect-video rounded-lg overflow-hidden mb-2 bg-surface-container">
+                <img 
+                  className="w-full h-full object-cover transition-transform duration-550 group-hover:scale-108" 
+                  alt="Exterior Cladding" 
+                  src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=400&h=250&fit=crop"
+                />
+              </div>
+              <div className="px-1">
+                <p className="text-body-md font-semibold text-ink-black">Exterior Cladding</p>
+                <p className="text-label-md text-secondary">Apex Tower • 2d ago</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Mail, Lock, Eye, EyeOff, User, Building, Sparkles, ChevronRight, Check, X, ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useStore } from '@/frontend/store/store';
 
 export default function AuthScreens({
@@ -26,7 +25,7 @@ export default function AuthScreens({
   setShowPassword,
   forgotEmail,
   setForgotEmail,
-  loading
+  loading,
 }) {
   const resendOtp = useStore((state) => state.resendOtp);
 
@@ -48,7 +47,6 @@ export default function AuthScreens({
       if (savedEmail && !signupForm.email) {
         setSignupForm(prev => ({ ...prev, email: savedEmail }));
       }
-      // Start 60s countdown when entering verify tab
       setCountdown(60);
     }
   }, [activeTab]);
@@ -92,8 +90,6 @@ export default function AuthScreens({
 
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
-    
-    // Client-side password strength validation (matches server)
     if (passwordStrengthScore < 5) {
       setError('Password does not meet all security requirements.');
       return;
@@ -115,7 +111,7 @@ export default function AuthScreens({
     newOtp[index] = value;
     setOtpArray(newOtp);
     setSignupCodeInput(newOtp.join(''));
-    
+
     // Auto focus next
     if (value !== '' && index < 5 && otpRefs.current[index + 1]) {
       otpRefs.current[index + 1].focus();
@@ -160,314 +156,349 @@ export default function AuthScreens({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col lg:flex-row font-sans text-slate-100">
+    <div className="min-h-screen bg-background flex items-stretch text-on-surface font-sans">
       
-      {/* Toast Banners */}
+      {/* Toast Alert Banners */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
         {successMessage && (
-          <div className="bg-emerald-900/90 text-emerald-100 px-4 py-3 rounded-lg shadow-2xl flex items-center gap-3 animate-fade-in border border-emerald-700/50 text-sm backdrop-blur-md">
-            <div className="bg-emerald-500/20 p-1 rounded-full">
-              <Check className="w-4 h-4 text-emerald-400" />
-            </div>
-            <span>{successMessage}</span>
+          <div className="bg-white border border-success/30 shadow-2xl rounded-xl p-4 flex items-center gap-3 animate-fade-in text-on-surface text-sm">
+            <span className="material-symbols-outlined text-success text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+              check_circle
+            </span>
+            <span className="font-semibold">{successMessage}</span>
           </div>
         )}
         {error && (
-          <div className="bg-rose-900/90 text-rose-100 px-4 py-3 rounded-lg shadow-2xl flex items-center gap-3 animate-fade-in border border-rose-700/50 text-sm backdrop-blur-md">
-            <div className="bg-rose-500/20 p-1 rounded-full">
-              <X className="w-4 h-4 text-rose-400" />
-            </div>
-            <span>{error}</span>
+          <div className="bg-white border border-error/30 shadow-2xl rounded-xl p-4 flex items-center gap-3 animate-fade-in text-on-surface text-sm">
+            <span className="material-symbols-outlined text-error text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+              error
+            </span>
+            <span className="font-semibold">{error}</span>
           </div>
         )}
       </div>
 
-      <div className="hidden lg:flex lg:w-[48%] relative flex-col justify-between p-12 bg-slate-900 overflow-hidden shrink-0 select-none border-r border-slate-800">
-        <div 
-          className="absolute inset-0 bg-cover bg-center grayscale contrast-125 opacity-20 mix-blend-luminosity" 
-          style={{ backgroundImage: `url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1200')` }}
+      {/* Left Side: Architectural Illustration Section */}
+      <section className="hidden lg:flex lg:w-1/2 relative bg-surface-container overflow-hidden select-none">
+        <div className="absolute inset-0 z-0">
+          <img
+            alt="Modern skyscraper architecture"
+            className="w-full h-full object-cover grayscale opacity-90 transition-transform duration-[10000ms] hover:scale-105"
+            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCghPeRoZ08R9AdXhyrccfoSMSf2xaSx51nH50nXma1q8RFBH8J-rLwVnwYZZ24jZnhvgaxAkZoqC2ziXpxhhPpFwuoktzUVRlWZhTh3g8bKYOinVfrUcsj1QWHvw8DrUqWzTKYUPzhkuRlQAoMGwVf-oumkck41pJK4BrodP9Asgaz2onsnw_fj130lAqY-BBzg4A9C8twtOS6TzD-W60x0g4lTltew4dN0y53pHES1wC-NkUM62CTayrnaOHul58CG1muStMV-Wg"
+          />
+        </div>
+        <div className="absolute inset-0 bg-primary/10 mix-blend-multiply z-10"></div>
+        {/* Architectural radial grid simulation */}
+        <div
+          className="absolute inset-0 opacity-30 z-20"
+          style={{
+            backgroundImage: 'radial-gradient(#E2E8F0 1px, transparent 1px)',
+            backgroundSize: '24px 24px',
+          }}
         ></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"></div>
 
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.2)]">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M3 12h18M12 3l9 9M12 3L3 12" />
-            </svg>
+        {/* Branding Overlay */}
+        <div className="relative z-30 p-12 flex flex-col justify-between h-full w-full">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-on-surface flex items-center justify-center rounded-lg shadow-lg">
+              <span className="material-symbols-outlined text-surface text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                architecture
+              </span>
+            </div>
+            <span className="text-headline-md font-black text-ink-black tracking-tight">Keystone</span>
           </div>
-          <span className="text-xl font-bold tracking-tight text-white">Keystone</span>
-        </div>
 
-        <div className="relative z-10 bg-slate-900/60 backdrop-blur-xl p-8 rounded-2xl border border-slate-700/50 max-w-md animate-fade-in shadow-2xl">
-          <h3 className="text-xl font-bold text-white leading-snug">Precision is our foundation.</h3>
-          <p className="mt-4 text-sm leading-relaxed text-slate-400">
-            Join the network of top-tier architects and project managers building the future of the built environment with data-driven workflows and real-time collaboration.
-          </p>
+          <div className="max-w-md bg-white/10 backdrop-blur-md p-8 rounded-2xl border border-white/20">
+            <p className="font-bold text-headline-md text-white mb-4">Precision is not just a standard, it's our foundation.</p>
+            <p className="text-body-lg text-white/80 leading-relaxed font-medium">
+              Join the network of architects and project managers building the future of the built environment with data-driven insights.
+            </p>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="flex-1 flex flex-col justify-center items-center py-12 px-6 sm:px-12 lg:px-20 bg-slate-950 relative">
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-blue-900/10 blur-[120px]"></div>
-          <div className="absolute -bottom-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-indigo-900/10 blur-[120px]"></div>
-        </div>
+      {/* Right Side: Authentication Forms Panel */}
+      <section className="w-full lg:w-1/2 bg-surface flex items-center justify-center p-6 md:p-12">
+        <div className="w-full max-w-md">
+          {/* Mobile Branding Logo */}
+          <div className="lg:hidden flex items-center gap-3 mb-12">
+            <div className="w-10 h-10 bg-primary flex items-center justify-center rounded-lg">
+              <span className="material-symbols-outlined text-white text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                architecture
+              </span>
+            </div>
+            <span className="text-headline-md font-black text-ink-black tracking-tight">Keystone</span>
+          </div>
 
-        <div className="w-full max-w-sm space-y-8 relative z-10">
-          
-          {/* LOGIN */}
+          {/* 1. LOGIN VIEW */}
           {activeTab === 'login' && (
-            <div className="space-y-6 animate-fade-in">
+            <div className="space-y-8 animate-fade-in">
               <div>
-                <h2 className="text-3xl font-bold tracking-tight text-white">Welcome Back</h2>
-                <p className="mt-2 text-sm text-slate-400">Sign in to access your secure workspace.</p>
+                <h1 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight mb-2">
+                  Welcome Back
+                </h1>
+                <p className="text-body-lg text-secondary font-medium">
+                  Access your studio dashboard and active projects.
+                </p>
               </div>
 
-              <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <form onSubmit={handleLoginSubmit} className="space-y-6">
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email Address</label>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Email Address
+                  </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Mail className="h-4.5 w-4.5 text-slate-500" />
-                    </div>
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      mail
+                    </span>
                     <input
                       type="email"
                       required
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-3 border border-slate-800 rounded-xl text-sm bg-slate-900 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-inner"
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
                       placeholder="name@keystonestudio.com"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Password</label>
-                    <button 
-                      type="button" 
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-label-md font-bold text-secondary uppercase tracking-wider">
+                      Password
+                    </label>
+                    <button
+                      type="button"
                       onClick={() => setTab('forgot')}
-                      className="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                      className="text-label-md font-bold text-primary hover:underline transition-all cursor-pointer"
                     >
                       Forgot Password?
                     </button>
                   </div>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Lock className="h-4.5 w-4.5 text-slate-500" />
-                    </div>
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      lock
+                    </span>
                     <input
                       type={showPassword ? 'text' : 'password'}
                       required
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      className="block w-full pl-10 pr-10 py-3 border border-slate-800 rounded-xl text-sm bg-slate-900 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-inner"
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-10 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
                       placeholder="••••••••"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors cursor-pointer"
                     >
-                      {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                      <span className="material-symbols-outlined text-[20px]">
+                        {showPassword ? 'visibility_off' : 'visibility'}
+                      </span>
                     </button>
                   </div>
                 </div>
 
                 <div className="pt-2">
-                  <button 
+                  <button
                     type="submit"
                     disabled={loading}
-                    className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-blue-500 transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-primary hover:bg-primary-container text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
                   >
-                    {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
-                    <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
-                    {!loading && <ChevronRight className="w-4 h-4" />}
+                    {loading && (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    )}
+                    <span>{loading ? 'Authenticating...' : 'Login'}</span>
+                    {!loading && <span className="material-symbols-outlined text-[18px]">arrow_forward</span>}
                   </button>
                 </div>
               </form>
 
-              <div className="text-center text-sm text-slate-400 pt-4">
-                <span>New to Keystone? </span>
-                <button onClick={() => setTab('signup')} className="font-bold text-white hover:text-blue-400 transition-colors">
-                  Create an account
-                </button>
+              <div className="text-center">
+                <p className="text-body-md text-secondary font-medium">
+                  Don't have an account?{' '}
+                  <button
+                    onClick={() => setTab('signup')}
+                    className="text-primary font-bold hover:underline cursor-pointer"
+                  >
+                    Create a new studio
+                  </button>
+                </p>
               </div>
             </div>
           )}
 
-          {/* SIGNUP */}
+          {/* 2. SIGNUP VIEW */}
           {activeTab === 'signup' && (
-            <div className="space-y-6 animate-fade-in">
+            <div className="space-y-8 animate-fade-in">
               <div>
-                <h2 className="text-3xl font-bold tracking-tight text-white">Create Account</h2>
-                <p className="mt-2 text-sm text-slate-400">Set up your secure firm workspace.</p>
+                <h1 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight mb-2">
+                  Create Studio Account
+                </h1>
+                <p className="text-body-lg text-secondary font-medium">
+                  Set up your secure architectural firm workspace.
+                </p>
               </div>
 
-              <form onSubmit={handleSignupSubmit} className="space-y-4">
+              <form onSubmit={handleSignupSubmit} className="space-y-5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Name</label>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Full Name
+                  </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <User className="h-4.5 w-4.5 text-slate-500" />
-                    </div>
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      person
+                    </span>
                     <input
                       type="text"
                       required
                       value={signupForm.name}
                       onChange={(e) => setSignupForm({ ...signupForm, name: e.target.value })}
-                      className="block w-full pl-10 pr-3 py-3 border border-slate-800 rounded-xl text-sm bg-slate-900 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                      placeholder="David Chen"
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                      placeholder="e.g. Sarah Chen"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email Address</label>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Email Address
+                  </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Mail className="h-4.5 w-4.5 text-slate-500" />
-                    </div>
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      mail
+                    </span>
                     <input
                       type="email"
                       required
                       value={signupForm.email}
                       onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                      className="block w-full pl-10 pr-3 py-3 border border-slate-800 rounded-xl text-sm bg-slate-900 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
                       placeholder="name@firm.com"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Firm Name</label>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Firm / Company Name
+                  </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Building className="h-4.5 w-4.5 text-slate-500" />
-                    </div>
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      corporate_fare
+                    </span>
                     <input
                       type="text"
                       required
                       value={signupForm.companyName}
                       onChange={(e) => setSignupForm({ ...signupForm, companyName: e.target.value })}
-                      className="block w-full pl-10 pr-3 py-3 border border-slate-800 rounded-xl text-sm bg-slate-900 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                      placeholder="Keystone Studio Ltd"
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                      placeholder="e.g. Keystone Studio Partners"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Password</label>
+                    <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                      Password
+                    </label>
                     <input
                       type="password"
                       required
                       minLength={8}
                       value={signupForm.password}
                       onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                      className="block w-full px-3 py-3 border border-slate-800 rounded-xl text-sm bg-slate-900 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
                       placeholder="••••••••"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Confirm</label>
+                    <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                      Confirm
+                    </label>
                     <input
                       type="password"
                       required
                       minLength={8}
                       value={signupForm.confirmPassword}
                       onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
-                      className="block w-full px-3 py-3 border border-slate-800 rounded-xl text-sm bg-slate-900 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
                       placeholder="••••••••"
                     />
                   </div>
                 </div>
 
-                {/* Password Strength Indicator */}
+                {/* Password Strength checker */}
                 {signupForm.password.length > 0 && (
-                  <div className="space-y-2 p-3 rounded-xl bg-slate-900/50 border border-slate-800">
+                  <div className="space-y-2.5 p-3.5 rounded-xl bg-surface-container-low border border-border-subtle text-xs">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Password Strength</span>
-                      <span className={`text-xs font-bold ${
-                        passwordStrengthScore <= 2 ? 'text-rose-400' :
-                        passwordStrengthScore <= 4 ? 'text-amber-400' : 'text-emerald-400'
+                      <span className="font-bold text-secondary uppercase tracking-wider">Password Strength</span>
+                      <span className={`font-bold ${
+                        passwordStrengthScore <= 2 ? 'text-error' :
+                        passwordStrengthScore <= 4 ? 'text-warning' : 'text-success'
                       }`}>
                         {passwordStrengthScore <= 2 ? 'Weak' : passwordStrengthScore <= 4 ? 'Fair' : 'Strong'}
                       </span>
                     </div>
-                    <div className="flex gap-1">
-                      {[1,2,3,4,5].map(i => (
-                        <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                    <div className="flex gap-1.5">
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
                           i <= passwordStrengthScore
-                            ? passwordStrengthScore <= 2 ? 'bg-rose-500' : passwordStrengthScore <= 4 ? 'bg-amber-500' : 'bg-emerald-500'
-                            : 'bg-slate-800'
+                            ? passwordStrengthScore <= 2 ? 'bg-error' : passwordStrengthScore <= 4 ? 'bg-warning' : 'bg-success'
+                            : 'bg-surface-container-high'
                         }`} />
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1.5">
-                      {[
-                        { key: 'length', label: '8+ characters' },
-                        { key: 'uppercase', label: 'Uppercase' },
-                        { key: 'lowercase', label: 'Lowercase' },
-                        { key: 'number', label: 'Number' },
-                        { key: 'special', label: 'Special char' },
-                      ].map(({ key, label }) => (
-                        <div key={key} className="flex items-center gap-1.5">
-                          <div className={`w-3 h-3 rounded-full flex items-center justify-center transition-all ${
-                            passwordChecks[key] ? 'bg-emerald-500/20' : 'bg-slate-800'
-                          }`}>
-                            {passwordChecks[key] ? (
-                              <Check className="w-2 h-2 text-emerald-400" />
-                            ) : (
-                              <div className="w-1 h-1 rounded-full bg-slate-600" />
-                            )}
-                          </div>
-                          <span className={`text-[10px] ${
-                            passwordChecks[key] ? 'text-emerald-400' : 'text-slate-500'
-                          }`}>{label}</span>
-                        </div>
                       ))}
                     </div>
                   </div>
                 )}
 
                 <div className="pt-2">
-                  <button 
+                  <button
                     type="submit"
                     disabled={loading}
-                    className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-blue-500 transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-primary hover:bg-primary-container text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
                   >
-                    {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
-                    <span>{loading ? 'Creating...' : 'Create Account'}</span>
-                    {!loading && <ChevronRight className="w-4 h-4" />}
+                    {loading && (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    )}
+                    <span>{loading ? 'Creating workspace...' : 'Register Studio'}</span>
                   </button>
                 </div>
               </form>
 
-              <div className="text-center text-sm text-slate-400 pt-2">
-                <span>Already have an account? </span>
-                <button onClick={() => setTab('login')} className="font-bold text-white hover:text-blue-400 transition-colors">
-                  Sign In
-                </button>
+              <div className="text-center">
+                <p className="text-body-md text-secondary font-medium">
+                  Already registered?{' '}
+                  <button
+                    onClick={() => setTab('login')}
+                    className="text-primary font-bold hover:underline cursor-pointer"
+                  >
+                    Sign In instead
+                  </button>
+                </p>
               </div>
             </div>
           )}
 
-          {/* VERIFY */}
+          {/* 3. VERIFICATION VIEW */}
           {activeTab === 'verify' && (
-            <div className="space-y-6 animate-fade-in text-center">
-              <div className="w-16 h-16 bg-blue-900/30 border border-blue-500/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Mail className="w-8 h-8 text-blue-400" />
+            <div className="space-y-8 animate-fade-in text-center">
+              <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-full flex items-center justify-center mx-auto mb-4 select-none">
+                <span className="material-symbols-outlined text-primary text-[32px]">mail</span>
               </div>
               <div>
-                <h2 className="text-2xl font-bold tracking-tight text-white">Check Your Email</h2>
-                <p className="mt-2 text-sm text-slate-400">
-                  We sent a 6-digit verification code to <br/>
-                  <span className="font-semibold text-white">{signupForm.email || sessionStorage.getItem('verifyEmail')}</span>
+                <h1 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight mb-2">
+                  Check Your Inbox
+                </h1>
+                <p className="text-body-md text-secondary leading-relaxed font-medium">
+                  We sent a 6-digit activation code to <br />
+                  <span className="font-bold text-ink-black">{signupForm.email || sessionStorage.getItem('verifyEmail')}</span>
                 </p>
               </div>
 
               <form onSubmit={handleVerifySubmit} className="space-y-6">
-                <div className="flex justify-center gap-2 sm:gap-3">
+                <div className="flex justify-center gap-3">
                   {otpArray.map((digit, i) => (
                     <input
                       key={i}
@@ -477,91 +508,101 @@ export default function AuthScreens({
                       value={digit}
                       onChange={e => handleOtpChange(i, e.target.value)}
                       onKeyDown={e => handleOtpKeyDown(i, e)}
-                      className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold rounded-xl border border-slate-700 bg-slate-900 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-inner"
+                      className="w-11 h-14 text-center text-xl font-bold rounded-xl border border-border-subtle bg-white text-ink-black focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
                     />
                   ))}
                 </div>
 
-                <div>
-                  <button 
-                    type="submit" 
+                <div className="pt-2">
+                  <button
+                    type="submit"
                     disabled={loading}
-                    className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-emerald-500 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-success hover:bg-emerald-600 text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
                   >
-                    {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
-                    <span>{loading ? 'Verifying...' : 'Verify & Activate'}</span>
-                    {!loading && <Check className="w-4 h-4" />}
+                    {loading && (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    )}
+                    <span>{loading ? 'Activating account...' : 'Verify Code & Activate'}</span>
                   </button>
                 </div>
               </form>
 
-              <div className="pt-6 border-t border-slate-800">
-                <p className="text-sm text-slate-400 mb-3">Didn't receive the code or it expired?</p>
+              <div className="pt-6 border-t border-border-subtle">
+                <p className="text-body-md text-secondary mb-3 font-medium">Didn't receive the email code?</p>
                 <button
                   onClick={handleResendOtp}
                   disabled={countdown > 0}
-                  className="flex items-center justify-center gap-2 mx-auto text-sm font-semibold text-blue-400 hover:text-blue-300 disabled:text-slate-500 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline cursor-pointer disabled:text-secondary disabled:no-underline disabled:cursor-not-allowed transition-all"
                 >
-                  <RefreshCw className={`w-4 h-4 ${countdown === 0 ? '' : 'opacity-50'}`} />
-                  {countdown > 0 ? `Resend available in ${countdown}s` : 'Resend Code'}
-                </button>
-              </div>
-
-              <div className="text-center pt-2">
-                <button onClick={() => setTab('signup')} className="text-xs font-bold text-slate-500 hover:text-white transition-colors flex items-center justify-center gap-1 mx-auto">
-                  <ArrowLeft className="w-3 h-3" />
-                  Use a different email
+                  <span className={`material-symbols-outlined text-[18px] ${countdown > 0 ? 'animate-spin' : ''}`}>
+                    autorenew
+                  </span>
+                  <span>{countdown > 0 ? `Resend OTP in ${countdown}s` : 'Resend Code'}</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* FORGOT PASSWORD */}
+          {/* 4. FORGOT PASSWORD VIEW */}
           {activeTab === 'forgot' && (
-            <div className="space-y-6 animate-fade-in">
-              <button 
+            <div className="space-y-8 animate-fade-in">
+              <button
                 onClick={() => setTab('login')}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors mb-2"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container-low hover:bg-surface-container border border-border-subtle text-secondary transition-all cursor-pointer shadow-sm mb-2"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <span className="material-symbols-outlined text-[20px]">arrow_back</span>
               </button>
               <div>
-                <h2 className="text-3xl font-bold tracking-tight text-white">Reset Password</h2>
-                <p className="mt-2 text-sm text-slate-400">Enter your email and we'll send you a link to reset your password.</p>
+                <h1 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight mb-2">
+                  Reset Password
+                </h1>
+                <p className="text-body-md text-secondary font-medium">
+                  Enter your registered email below, and we will send you a reset link.
+                </p>
               </div>
 
-              <form onSubmit={handleResetSubmit} className="space-y-4">
+              <form onSubmit={handleResetSubmit} className="space-y-6">
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email Address</label>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Email Address
+                  </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Mail className="h-4.5 w-4.5 text-slate-500" />
-                    </div>
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      mail
+                    </span>
                     <input
                       type="email"
                       required
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-3 border border-slate-800 rounded-xl text-sm bg-slate-900 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-inner"
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
                       placeholder="name@keystonestudio.com"
                     />
                   </div>
                 </div>
 
                 <div className="pt-2">
-                  <button 
-                    type="submit" 
-                    className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-blue-500 transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)]"
+                  <button
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary-container text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] cursor-pointer shadow-sm"
                   >
-                    Send Reset Link
+                    Send Reset Email Link
                   </button>
                 </div>
               </form>
             </div>
           )}
 
+          {/* Footer content */}
+          <footer className="mt-20 pt-8 border-t border-border-subtle flex flex-wrap justify-between gap-4 text-outline text-label-sm font-semibold select-none">
+            <span>© 2026 Keystone Studio Inc.</span>
+            <div className="flex gap-4">
+              <a className="hover:text-primary transition-colors" href="#">Privacy Policy</a>
+              <a className="hover:text-primary transition-colors" href="#">Terms of Service</a>
+            </div>
+          </footer>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

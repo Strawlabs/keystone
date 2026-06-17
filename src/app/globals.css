@@ -1,10 +1,74 @@
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #004ac6;
+  --color-primary-container: #2563eb;
+  --color-on-primary-container: #eeefff;
+  --color-background: #f7f9fb;
+  --color-on-background: #191c1e;
+  --color-surface: #ffffff;
+  --color-surface-dim: #d8dadc;
+  --color-surface-bright: #f7f9fb;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f2f4f6;
+  --color-surface-container: #eceef0;
+  --color-surface-container-high: #e6e8ea;
+  --color-surface-container-highest: #e0e3e5;
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #434655;
+  --color-inverse-surface: #2d3133;
+  --color-inverse-on-surface: #eff1f3;
+  --color-outline: #737686;
+  --color-outline-variant: #c3c6d7;
+  --color-surface-tint: #0053db;
+  --color-secondary: #515f74;
+  --color-secondary-container: #d5e3fc;
+  --color-on-secondary-container: #57657a;
+  --color-tertiary: #943700;
+  --color-tertiary-container: #bc4800;
+  --color-on-tertiary-container: #ffede6;
+  --color-ink-black: #0F172A;
+  --color-border-subtle: #E2E8F0;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+}
+
 @layer base {
   body {
-    @apply antialiased bg-slate-950 text-slate-100;
-    font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+    @apply antialiased bg-background text-on-background;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
+}
+
+.premium-card {
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.premium-card:hover {
+  box-shadow: 0px 4px 12px rgba(0,0,0,0.05);
+}
+
+.timeline-line::before {
+  content: '';
+  position: absolute;
+  left: 19px;
+  top: 40px;
+  bottom: -20px;
+  width: 2px;
+  background-color: #E2E8F0;
+}
+.last-entry::before {
+  display: none;
+}
+
+.scroll-hide::-webkit-scrollbar {
+  display: none;
+}
+.scroll-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Custom Scrollbar */
