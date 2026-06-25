@@ -1,0 +1,53 @@
+import { NextResponse } from 'next/server';
+import { db } from '@/backend/db';
+import { logActivity } from '@/backend/services/activity';
+import { getAuthContext } from '@/backend/utils/auth';
+import { updateTaskSchema } from '@/backend/utils/validation';
+
+export async function PUT(request, { params }) {
+  try {
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId, userId } = auth;
+    const { id } = await params;
+
+    // Verify task ownership under the caller's tenant
+    const tasks = await db.getTasks(tenantId);
+    const task = tasks.find(t => t.id === id);
+    if (!task) {
+      return NextResponse.json({ error: 'Task not found or unauthorized.' }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const validation = updateTaskSchema.safeParse(body);
+    if (!validation.success) {
+      const errorMsg = validation.error.issues.map(e => e.message).join(' ');
+      return NextResponse.json({ error: errorMsg, details: validation.error.flatten().fieldErrors }, { status: 400 });
+    }
+
+    const { title, description, assigned_to, priority, status, due_date } = validation.data;
+
+    const updates = {};
+    if (title !== undefined) updates.title = title;
+    if (description !== undefined) updates.description = description;
+    if (assigned_to !== undefined) updates.assigned_to = assigned_to || null;
+    if (priority !== undefined) updates.priority = priority;
+    if (status !== undefined) updates.status = status;
+    if (due_date !== undefined) updates.due_date = due_date;
+
+    const updatedTask = await db.updateTask(id, updates);
+
+    // Log update
+    await logActivity(tenantId, userId, 'task', id, 'Task Updated', {
+      taskTitle: updatedTask.title,
+      status: updatedTask.status
+    });
+
+    return NextResponse.json({ message: 'Task updated successfully', task: updatedTask });
+  } catch (error) {
+    console.error('Update Task API Error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
