@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useStore } from '@/frontend/store/store';
+import { createProjectSchema, createDrawingSchema, createSiteLogSchema } from '@/backend/utils/validation';
 
 // Check if user is in dev/mock mode (non-UUID tenant)
 const isMockTenant = (tenantId) => {
@@ -48,6 +50,7 @@ export default function Modals({
   handleSaveUser,
   currentUser,
   currentTenantId,
+  createProject,
 }) {
   // Local state for file uploads
   const [drawingFile, setDrawingFile] = useState(null);
@@ -58,21 +61,87 @@ export default function Modals({
   const [sitePhotoPreview, setSitePhotoPreview] = useState([]);
   const [uploadingLogs, setUploadingLogs] = useState(false);
 
+  // On-the-fly project state
+  const [isCreatingNewProj, setIsCreatingNewProj] = useState(false);
+  const [newProjName, setNewProjName] = useState('');
+  const [newProjCode, setNewProjCode] = useState('');
+  const [newProjClient, setNewProjClient] = useState('');
+
+  // Automatically switch toggle state if there are no projects
+  React.useEffect(() => {
+    if (showDrawingModal && projects.length === 0) {
+      setIsCreatingNewProj(true);
+    }
+  }, [showDrawingModal, projects.length]);
+
   const isMock = isMockTenant(currentTenantId);
 
   const handleUploadDrawingSubmit = async (e) => {
     e.preventDefault();
     if (!drawingFile) {
-      alert('Please select a file to upload.');
+      useStore.getState().setError('Please select a file to upload.');
       return;
     }
     if (isMock) {
-      alert('Sign up with a real account to upload drawings to Supabase Storage.');
+      useStore.getState().setError('Sign up with a real account to upload drawings to Supabase Storage.');
       return;
     }
     setUploadingDrawing(true);
     setUploadProgress(10);
     try {
+      let projectId = newDrawingInput.project_id;
+
+      // Create new project on-the-fly first if toggled
+      if (isCreatingNewProj) {
+        const newProjData = {
+          name: newProjName,
+          code: newProjCode,
+          client_name: newProjClient,
+          client_email: '',
+          location: '',
+          description: 'Created automatically during drawing upload',
+          status: 'active',
+          start_date: new Date().toISOString().split('T')[0],
+          end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        };
+
+        const projValidation = createProjectSchema.safeParse(newProjData);
+        if (!projValidation.success) {
+          const errorMsg = projValidation.error.issues.map(err => err.message).join(' ');
+          throw new Error(errorMsg);
+        }
+
+        // Client-side unique code check
+        if (projects.some(p => p.code.toUpperCase() === newProjCode.toUpperCase())) {
+          throw new Error(`Project code '${newProjCode}' already exists under this tenant. Please choose a unique code.`);
+        }
+
+        setUploadProgress(20);
+        const createdProject = await createProject({
+          ...projValidation.data,
+          members: []
+        });
+
+        if (!createdProject || !createdProject.id) {
+          const storeError = useStore.getState().error;
+          throw new Error(storeError || 'Failed to create new project. Please make sure the project code is unique.');
+        }
+        projectId = createdProject.id;
+      }
+
+      // Validate drawing metadata (pre-upload)
+      const targetProjId = projectId || (projects[0]?.id || '');
+      const drawingValidation = createDrawingSchema.omit({ file_url: true }).safeParse({
+        project_id: targetProjId,
+        name: newDrawingInput.name,
+        category: newDrawingInput.category
+      });
+
+      if (!drawingValidation.success) {
+        const errorMsg = drawingValidation.error.issues.map(err => err.message).join(' ');
+        throw new Error(errorMsg);
+      }
+
       const formData = new FormData();
       formData.append('file', drawingFile);
       formData.append('path', 'drawings');
@@ -87,13 +156,23 @@ export default function Modals({
         throw new Error(uploadData.error || 'Failed to upload to Supabase Storage');
       }
 
+      // Full validate including fileUrl
+      const finalDrawingValidation = createDrawingSchema.safeParse({
+        project_id: targetProjId,
+        name: newDrawingInput.name,
+        category: newDrawingInput.category,
+        file_url: uploadData.fileUrl
+      });
+
+      if (!finalDrawingValidation.success) {
+        const errorMsg = finalDrawingValidation.error.issues.map(err => err.message).join(' ');
+        throw new Error(errorMsg);
+      }
+
       setUploadProgress(80);
       const success = await createDrawing({
-        project_id: newDrawingInput.project_id || (projects[0]?.id || ''),
-        name: newDrawingInput.name,
+        ...finalDrawingValidation.data,
         drawing_number: newDrawingInput.drawing_number,
-        category: newDrawingInput.category,
-        file_url: uploadData.fileUrl,
         revision_number: parseInt(newDrawingInput.revision_number) || 1,
         revision_notes: newDrawingInput.revision_notes
       });
@@ -104,9 +183,14 @@ export default function Modals({
         setNewDrawingInput({ project_id: '', name: '', drawing_number: '', category: 'architectural', revision_number: '1', revision_notes: '', file_url: '' });
         setDrawingFile(null);
         setUploadProgress(0);
+        // Reset on-the-fly project states
+        setNewProjName('');
+        setNewProjCode('');
+        setNewProjClient('');
+        setIsCreatingNewProj(false);
       }
     } catch (err) {
-      alert(err.message);
+      useStore.getState().setError(err.message);
     } finally {
       setUploadingDrawing(false);
     }
@@ -123,6 +207,19 @@ export default function Modals({
     e.preventDefault();
     setUploadingLogs(true);
     try {
+      const targetProjId = newLog.project_id || (projects[0]?.id || '');
+      const logData = {
+        project_id: targetProjId,
+        notes: newLog.notes,
+        site_status: newLog.site_status || 'active'
+      };
+
+      const validation = createSiteLogSchema.safeParse(logData);
+      if (!validation.success) {
+        const errorMsg = validation.error.issues.map(err => err.message).join(' ');
+        throw new Error(errorMsg);
+      }
+
       const uploadedUrls = [];
       for (const file of sitePhotos) {
         if (isMock) {
@@ -144,9 +241,7 @@ export default function Modals({
       }
 
       const success = await createSiteLog({
-        project_id: newLog.project_id || (projects[0]?.id || ''),
-        notes: newLog.notes,
-        site_status: newLog.site_status || 'active',
+        ...validation.data,
         photos: uploadedUrls
       });
 
@@ -157,7 +252,7 @@ export default function Modals({
         setSitePhotoPreview([]);
       }
     } catch (err) {
-      alert(err.message);
+      useStore.getState().setError(err.message);
     } finally {
       setUploadingLogs(false);
     }
@@ -565,18 +660,73 @@ export default function Modals({
                 <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Drawing Details</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Select Project *</label>
-                    <select
-                      required
-                      value={newDrawingInput.project_id}
-                      onChange={(e) => setNewDrawingInput({ ...newDrawingInput, project_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs cursor-pointer"
-                    >
-                      <option value="">-- Choose Project --</option>
-                      {projects.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider">
+                        {isCreatingNewProj ? "Create New Project *" : "Select Project *"}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsCreatingNewProj(!isCreatingNewProj)}
+                        className="text-[10px] text-primary font-bold hover:underline cursor-pointer"
+                      >
+                        {isCreatingNewProj ? "Select Existing Project" : "+ Create New Project"}
+                      </button>
+                    </div>
+
+                    {isCreatingNewProj ? (
+                      <div className="grid grid-cols-2 gap-3 bg-surface-container-low p-3.5 rounded-xl border border-border-subtle mt-1.5">
+                        <div className="col-span-2">
+                          <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Project Name *</label>
+                          <input
+                            type="text"
+                            required
+                            value={newProjName}
+                            onChange={(e) => {
+                              setNewProjName(e.target.value);
+                              const clean = e.target.value.replace(/[^a-zA-Z]/g, '');
+                              const code = clean.slice(0, 4).toUpperCase();
+                              setNewProjCode(code);
+                            }}
+                            className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                            placeholder="e.g. Zenith Tower Residential"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Project Code *</label>
+                          <input
+                            type="text"
+                            required
+                            value={newProjCode}
+                            onChange={(e) => setNewProjCode(e.target.value.toUpperCase())}
+                            className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                            placeholder="e.g. PRJ-ZTR"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-bold text-secondary uppercase tracking-wider mb-1">Client Name *</label>
+                          <input
+                            type="text"
+                            required
+                            value={newProjClient}
+                            onChange={(e) => setNewProjClient(e.target.value)}
+                            className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                            placeholder="e.g. Self / Client Name"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <select
+                        required
+                        value={newDrawingInput.project_id}
+                        onChange={(e) => setNewDrawingInput({ ...newDrawingInput, project_id: e.target.value })}
+                        className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs cursor-pointer mt-1"
+                      >
+                        <option value="">-- Choose Project --</option>
+                        {projects.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Drawing Name *</label>

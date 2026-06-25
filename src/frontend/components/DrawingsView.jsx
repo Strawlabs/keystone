@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useStore } from '@/frontend/store/store';
 
 const CATEGORIES = ['all', 'architectural', 'structural', 'interior', 'electrical', 'plumbing', 'elevation', 'miscellaneous'];
 
@@ -48,7 +49,7 @@ export default function DrawingsView({
 
   const handleQuickSubmitApproval = async (drawingId) => {
     if (clients.length === 0) {
-      alert('No clients available to send for approval. Please add a client first.');
+      useStore.getState().setError('No clients available to send for approval. Please add a client first.');
       return;
     }
     const firstClient = clients[0];

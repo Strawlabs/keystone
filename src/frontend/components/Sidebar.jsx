@@ -23,21 +23,34 @@ export default function Sidebar({
   handleOpenProjectModal,
   logout,
   notifications,
+  isOpen,
+  onClose,
 }) {
   const unreadCount = (notifications || []).filter(n => !n.is_read).length;
 
   return (
-    <aside className="w-64 h-screen fixed left-0 top-0 bg-surface border-r border-border-subtle flex flex-col justify-between py-6 px-4 z-50 shrink-0 select-none">
+    <aside className={`w-64 h-screen fixed left-0 top-0 bg-surface border-r border-border-subtle flex flex-col justify-between py-6 px-4 z-50 shrink-0 select-none transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+      isOpen ? 'translate-x-0' : '-translate-x-full'
+    }`}>
       <div>
         {/* Logo */}
-        <div className="mb-8 px-2 flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white">
-            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>architecture</span>
+        <div className="mb-8 px-2 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white">
+              <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>architecture</span>
+            </div>
+            <div>
+              <h1 className="text-headline-md font-bold text-on-surface leading-tight">Keystone Studio</h1>
+              <p className="text-label-md text-secondary">Studio Admin</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-headline-md font-bold text-on-surface leading-tight">Keystone Studio</h1>
-            <p className="text-label-md text-secondary">Studio Admin</p>
-          </div>
+          <button
+            onClick={onClose}
+            className="lg:hidden p-1.5 text-secondary hover:text-primary rounded-lg hover:bg-surface-container-low transition-colors cursor-pointer"
+            title="Close Menu"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
         </div>
 
         {/* Navigation Links */}

@@ -1,22 +1,26 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/backend/db';
 import { logActivity } from '@/backend/services/activity';
+import { getAuthContext } from '@/backend/utils/auth';
+import { createDrawingRevisionSchema } from '@/backend/utils/validation';
 
 export async function POST(request, { params }) {
   try {
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId, userId } = auth;
     const { id } = await params;
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const headerUserId = request.headers.get('x-user-id');
 
     const body = await request.json();
-    const tenantId = headerTenantId || body.tenant_id || 't1';
-    const userId = headerUserId || body.uploaded_by || 'u1';
-
-    const { file_url, notes } = body;
-
-    if (!file_url || !notes) {
-      return NextResponse.json({ error: 'File URL and revision notes are required.' }, { status: 400 });
+    const validation = createDrawingRevisionSchema.safeParse(body);
+    if (!validation.success) {
+      const errorMsg = validation.error.issues.map(e => e.message).join(' ');
+      return NextResponse.json({ error: errorMsg, details: validation.error.flatten().fieldErrors }, { status: 400 });
     }
+
+    const { file_url, notes } = validation.data;
 
     const drawing = await db.getDrawing(id);
     if (!drawing) {
@@ -53,9 +57,12 @@ export async function POST(request, { params }) {
 
 export async function GET(request, { params }) {
   try {
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId } = auth;
     const { id } = await params;
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const tenantId = headerTenantId || 't1';
 
     const drawing = await db.getDrawing(id);
     if (!drawing) {

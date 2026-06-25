@@ -2,16 +2,16 @@ import { NextResponse } from 'next/server';
 import { db } from '@/backend/db';
 import { logActivity } from '@/backend/services/activity';
 import { createNotification } from '@/backend/services/notificationHelper';
+import { getAuthContext } from '@/backend/utils/auth';
 
 export async function POST(request, { params }) {
   try {
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId, userId } = auth;
     const { id } = await params;
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const headerUserId = request.headers.get('x-user-id');
-
-    const body = await request.json().catch(() => ({}));
-    const tenantId = headerTenantId || body.tenant_id || 't1';
-    const userId = headerUserId || body.user_id || 'u3'; // default to staff user
 
     const task = await db.getTasks(tenantId);
     const targetTask = task.find(t => t.id === id);

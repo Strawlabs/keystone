@@ -396,6 +396,27 @@ export function SaaSAdminView() {
     Enterprise: 'text-tertiary',
   };
 
+  const [auditData, setAuditData] = useState(null);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+
+  const runAudit = async () => {
+    setLoadingAudit(true);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('keystone_token') : null;
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetch('/api/admin/readiness', { headers });
+      const data = await res.json();
+      setAuditData(data);
+    } catch (e) {
+      console.error('Audit failed:', e);
+    } finally {
+      setLoadingAudit(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in text-on-surface">
       <div>
@@ -432,6 +453,68 @@ export function SaaSAdminView() {
             +12% vs last month
           </p>
         </div>
+      </div>
+
+      {/* Production Readiness Section */}
+      <div className="bg-surface-container-lowest border border-border-subtle p-6 rounded-xl shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border-subtle pb-4">
+          <div>
+            <h3 className="text-body-lg font-bold text-ink-black flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-[24px]">verified_user</span>
+              Keystone Production Readiness Audit
+            </h3>
+            <p className="text-[10px] text-secondary mt-1 font-medium">Verify system security, RLS tables, backups, SSL encryption, Resend, and DB ping latency.</p>
+          </div>
+          <button
+            onClick={runAudit}
+            disabled={loadingAudit}
+            className="shrink-0 flex items-center gap-2 py-2 px-5 bg-primary hover:bg-primary-container text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-sm disabled:opacity-60 active:scale-95"
+          >
+            {loadingAudit ? (
+              <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <span className="material-symbols-outlined text-[16px]">sync</span>
+            )}
+            <span>{loadingAudit ? 'Auditing...' : 'Run Audit Check'}</span>
+          </button>
+        </div>
+
+        {auditData ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {auditData.checks?.map((check, idx) => {
+              const colors = {
+                healthy: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600',
+                warning: 'bg-amber-500/10 border-amber-500/20 text-amber-600',
+                error: 'bg-rose-500/10 border-rose-500/20 text-rose-600'
+              };
+              const icons = {
+                healthy: 'check_circle',
+                warning: 'warning',
+                error: 'error'
+              };
+              const statusColor = colors[check.status] || 'bg-slate-100 border-slate-200 text-slate-600';
+              const statusIcon = icons[check.status] || 'help';
+
+              return (
+                <div key={idx} className={`p-4 rounded-xl border flex items-start gap-3 shadow-sm ${statusColor}`}>
+                  <span className="material-symbols-outlined text-[20px] shrink-0 mt-0.5">{statusIcon}</span>
+                  <div>
+                    <h4 className="font-bold text-xs text-on-surface">{check.name}</h4>
+                    <p className="text-[10px] mt-1 text-secondary leading-relaxed font-semibold">{check.message}</p>
+                    <span className="inline-block mt-2 text-[8px] uppercase tracking-widest font-black px-1.5 py-0.5 bg-white/50 border border-current rounded">
+                      {check.status}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="py-8 text-center text-secondary border border-dashed border-border-subtle rounded-xl bg-surface-container-low/20">
+            <span className="material-symbols-outlined text-[32px] mb-1">dashboard_customize</span>
+            <p className="text-xs font-bold text-secondary">Click "Run Audit Check" to validate deployment integrity checklist.</p>
+          </div>
+        )}
       </div>
 
       {/* Firm Table */}

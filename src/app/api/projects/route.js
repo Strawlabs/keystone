@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/backend/db';
 import { logActivity } from '@/backend/services/activity';
+import { getAuthContext } from '@/backend/utils/auth';
+import { createProjectSchema } from '@/backend/utils/validation';
 
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const tenantId = headerTenantId || searchParams.get('tenantId') || 't1'; // Fallback to 't1' default tenant
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId } = auth;
 
     const projects = await db.getProjects(tenantId);
     return NextResponse.json({ projects });
@@ -18,18 +22,20 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const headerUserId = request.headers.get('x-user-id');
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId, userId } = auth;
     
     const body = await request.json();
-    const tenantId = headerTenantId || body.tenant_id || 't1';
-    const userId = headerUserId || body.created_by || 'u1';
-
-    const { name, code, client_name, client_email, location, description, status, start_date, end_date } = body;
-
-    if (!name || !code || !client_name) {
-      return NextResponse.json({ error: 'Project name, code, and client name are required.' }, { status: 400 });
+    const validation = createProjectSchema.safeParse(body);
+    if (!validation.success) {
+      const errorMsg = validation.error.issues.map(e => e.message).join(' ');
+      return NextResponse.json({ error: errorMsg, details: validation.error.flatten().fieldErrors }, { status: 400 });
     }
+
+    const { name, code, client_name, client_email, location, description, status, start_date, end_date } = validation.data;
 
     // Check if project code already exists for this tenant
     const existingProjects = await db.getProjects(tenantId);
@@ -57,7 +63,7 @@ export async function POST(request) {
       projectCode: newProject.code
     });
 
-    return NextResponse.json({ message: 'Project created successfully', project: newProject }, { status: 212 });
+    return NextResponse.json({ message: 'Project created successfully', project: newProject }, { status: 201 });
   } catch (error) {
     console.error('Create Project API Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

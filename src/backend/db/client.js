@@ -86,6 +86,27 @@ export const db = {
     return data;
   },
 
+  async getUserByEmail(email) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email.toLowerCase().trim())
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  async getUserByEmailAndTenant(email, tenantId) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email.toLowerCase().trim())
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
   async createUser(userData) {
     const { data, error } = await supabase.from('users').insert([userData]).select().single();
     if (error) throw error;
@@ -113,13 +134,29 @@ export const db = {
 
   async createProject(projectData) {
     const { data, error } = await supabase.from('projects').insert([projectData]).select().single();
-    if (error) throw error;
+    if (error) {
+      if (error.code === 'PGRST204' && error.message.includes('client_email')) {
+        const { client_email, ...fallbackData } = projectData;
+        const { data: retryData, error: retryError } = await supabase.from('projects').insert([fallbackData]).select().single();
+        if (retryError) throw retryError;
+        return retryData;
+      }
+      throw error;
+    }
     return data;
   },
 
   async updateProject(id, updates) {
     const { data, error } = await supabase.from('projects').update(updates).eq('id', id).select().single();
-    if (error) throw error;
+    if (error) {
+      if (error.code === 'PGRST204' && error.message.includes('client_email')) {
+        const { client_email, ...fallbackUpdates } = updates;
+        const { data: retryData, error: retryError } = await supabase.from('projects').update(fallbackUpdates).eq('id', id).select().single();
+        if (retryError) throw retryError;
+        return retryData;
+      }
+      throw error;
+    }
     return data;
   },
 

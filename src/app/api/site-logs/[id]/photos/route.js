@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/backend/db';
+import { getAuthContext } from '@/backend/utils/auth';
 
 export async function POST(request, { params }) {
   try {
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId } = auth;
     const { id } = await params;
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const tenantId = headerTenantId || 't1';
 
     const body = await request.json();
     const { image_urls } = body;
@@ -15,8 +19,6 @@ export async function POST(request, { params }) {
     }
 
     // Check if site log exists and matches tenant
-    const store = db; // simple reference
-    // We can fetch site logs for this tenant and find the log
     const siteLogs = await db.getSiteLogs(tenantId);
     const logExists = siteLogs.some(l => l.id === id);
 

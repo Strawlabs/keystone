@@ -11,6 +11,7 @@ export default function AuthScreens({
   error,
   successMessage,
   setError,
+  setSuccess,
   signupForm,
   setSignupForm,
   signupSentCode,
@@ -28,48 +29,69 @@ export default function AuthScreens({
   loading,
 }) {
   const resendOtp = useStore((state) => state.resendOtp);
+  const changePasswordWithToken = useStore((state) => state.changePasswordWithToken);
+  const completePasswordReset = useStore((state) => state.completePasswordReset);
 
-  // Countdown timer for OTP resend
-  const [countdown, setCountdown] = useState(0);
-  const [otpArray, setOtpArray] = useState(['', '', '', '', '', '']);
-  const otpRefs = useRef([]);
+  // States for companies list and custom flows
+  const [companies, setCompanies] = useState([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
-  // Store signup email in session storage in case of page reload during verify step
+  // Fetch companies list
   useEffect(() => {
-    if (signupForm.email) {
-      sessionStorage.setItem('verifyEmail', signupForm.email);
-    }
-  }, [signupForm.email]);
-
-  useEffect(() => {
-    if (activeTab === 'verify') {
-      const savedEmail = sessionStorage.getItem('verifyEmail');
-      if (savedEmail && !signupForm.email) {
-        setSignupForm(prev => ({ ...prev, email: savedEmail }));
-      }
-      setCountdown(60);
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    let timer;
-    if (countdown > 0) {
-      timer = setInterval(() => {
-        setCountdown((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [countdown]);
+    fetch('/api/company')
+      .then(res => res.json())
+      .then(data => {
+        if (data.companies) {
+          setCompanies(data.companies);
+        }
+      })
+      .catch(err => console.error('Failed to load companies:', err));
+  }, []);
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    await login(loginEmail, loginPassword);
+    await login(loginEmail, loginPassword, selectedCompanyId || null);
   };
 
   const handleResetSubmit = async (e) => {
     e.preventDefault();
-    await resetPassword(forgotEmail);
-    setTab('login');
+    await resetPassword(forgotEmail, selectedCompanyId || null);
+  };
+
+  const handleForceResetSubmit = async (e) => {
+    e.preventDefault();
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    const ok = await changePasswordWithToken(newPassword);
+    if (ok) {
+      setNewPassword('');
+      setConfirmNewPassword('');
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    const ok = await completePasswordReset(newPassword);
+    if (ok) {
+      setNewPassword('');
+      setConfirmNewPassword('');
+    }
   };
 
   // Password strength checks (reactive)
@@ -90,68 +112,28 @@ export default function AuthScreens({
 
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
-    if (passwordStrengthScore < 5) {
-      setError('Password does not meet all security requirements.');
+    if (!signupForm.companyName || !signupForm.email || !signupForm.name || !signupForm.companyAddress || !signupForm.companyNumber) {
+      setError('All fields are required.');
       return;
     }
-    if (signupForm.password !== signupForm.confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    const result = await signup(signupForm.name, signupForm.email, signupForm.companyName, signupForm.password);
+    const result = await signup(
+      signupForm.name,
+      signupForm.email,
+      signupForm.companyName,
+      '', // Legacy password parameter
+      signupForm.companyAddress,
+      signupForm.companyNumber
+    );
     if (result) {
-      setSignupSentCode(result);
-      setTab('verify');
-    }
-  };
-
-  const handleOtpChange = (index, value) => {
-    if (!/^[0-9]?$/.test(value)) return;
-    const newOtp = [...otpArray];
-    newOtp[index] = value;
-    setOtpArray(newOtp);
-    setSignupCodeInput(newOtp.join(''));
-
-    // Auto focus next
-    if (value !== '' && index < 5 && otpRefs.current[index + 1]) {
-      otpRefs.current[index + 1].focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index, e) => {
-    if (e.key === 'Backspace' && !otpArray[index] && index > 0) {
-      otpRefs.current[index - 1].focus();
-    }
-  };
-
-  const handleVerifySubmit = async (e) => {
-    e.preventDefault();
-    const code = otpArray.join('');
-    if (code.length !== 6) {
-      setError('Please enter the 6-digit code');
-      return;
-    }
-    const ok = await verify(signupForm.email, code);
-    if (ok) {
-      setSignupSentCode(null);
-      setSignupForm({ name: '', email: '', companyName: '', password: '', confirmPassword: '' });
-      setOtpArray(['', '', '', '', '', '']);
-      setSignupCodeInput('');
-      sessionStorage.removeItem('verifyEmail');
-    }
-  };
-
-  const handleResendOtp = async () => {
-    if (countdown > 0) return;
-    const emailToUse = signupForm.email || sessionStorage.getItem('verifyEmail');
-    if (!emailToUse) {
-      setError('Email not found. Please sign up again.');
-      setTab('signup');
-      return;
-    }
-    const ok = await resendOtp(emailToUse);
-    if (ok) {
-      setCountdown(60);
+      setSignupForm({
+        name: '',
+        email: '',
+        companyName: '',
+        password: '',
+        confirmPassword: '',
+        companyAddress: '',
+        companyNumber: ''
+      });
     }
   };
 
@@ -161,19 +143,35 @@ export default function AuthScreens({
       {/* Toast Alert Banners */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
         {successMessage && (
-          <div className="bg-white border border-success/30 shadow-2xl rounded-xl p-4 flex items-center gap-3 animate-fade-in text-on-surface text-sm">
-            <span className="material-symbols-outlined text-success text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-              check_circle
-            </span>
-            <span className="font-semibold">{successMessage}</span>
+          <div className="bg-white border border-success/30 shadow-2xl rounded-xl p-4 flex items-center justify-between gap-3 animate-fade-in text-on-surface text-sm">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-success text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                check_circle
+              </span>
+              <span className="font-semibold">{successMessage}</span>
+            </div>
+            <button 
+              onClick={() => setSuccess && setSuccess(null)}
+              className="text-secondary hover:text-primary transition-colors cursor-pointer text-lg font-bold pl-2 border-l border-border-subtle leading-none"
+            >
+              &times;
+            </button>
           </div>
         )}
         {error && (
-          <div className="bg-white border border-error/30 shadow-2xl rounded-xl p-4 flex items-center gap-3 animate-fade-in text-on-surface text-sm">
-            <span className="material-symbols-outlined text-error text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-              error
-            </span>
-            <span className="font-semibold">{error}</span>
+          <div className="bg-white border border-error/30 shadow-2xl rounded-xl p-4 flex items-center justify-between gap-3 animate-fade-in text-on-surface text-sm">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-error text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                error
+              </span>
+              <span className="font-semibold">{error}</span>
+            </div>
+            <button 
+              onClick={() => setError && setError(null)}
+              className="text-secondary hover:text-primary transition-colors cursor-pointer text-lg font-bold pl-2 border-l border-border-subtle leading-none"
+            >
+              &times;
+            </button>
           </div>
         )}
       </div>
@@ -243,6 +241,30 @@ export default function AuthScreens({
               </div>
 
               <form onSubmit={handleLoginSubmit} className="space-y-6">
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Select Company / Workspace
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      corporate_fare
+                    </span>
+                    <select
+                      value={selectedCompanyId}
+                      onChange={(e) => setSelectedCompanyId(e.target.value)}
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm appearance-none"
+                    >
+                      <option value="">-- Select Company (Multi-Tenant) --</option>
+                      {companies.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline text-[20px] pointer-events-none">
+                      arrow_drop_down
+                    </span>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
                     Email Address
@@ -316,72 +338,34 @@ export default function AuthScreens({
 
               <div className="text-center">
                 <p className="text-body-md text-secondary font-medium">
-                  Don't have an account?{' '}
+                  Need a SaaS workspace?{' '}
                   <button
                     onClick={() => setTab('signup')}
                     className="text-primary font-bold hover:underline cursor-pointer"
                   >
-                    Create a new studio
+                    Register new company
                   </button>
                 </p>
               </div>
             </div>
           )}
 
-          {/* 2. SIGNUP VIEW */}
+          {/* 2. SIGNUP VIEW (COMPANY REGISTRATION) */}
           {activeTab === 'signup' && (
             <div className="space-y-8 animate-fade-in">
               <div>
                 <h1 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight mb-2">
-                  Create Studio Account
+                  Register Company Workspace
                 </h1>
                 <p className="text-body-lg text-secondary font-medium">
-                  Set up your secure architectural firm workspace.
+                  Set up your isolated SaaS company environment.
                 </p>
               </div>
 
               <form onSubmit={handleSignupSubmit} className="space-y-5">
                 <div>
                   <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
-                      person
-                    </span>
-                    <input
-                      type="text"
-                      required
-                      value={signupForm.name}
-                      onChange={(e) => setSignupForm({ ...signupForm, name: e.target.value })}
-                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
-                      placeholder="e.g. Sarah Chen"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
-                      mail
-                    </span>
-                    <input
-                      type="email"
-                      required
-                      value={signupForm.email}
-                      onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
-                      placeholder="name@firm.com"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
-                    Firm / Company Name
+                    Company Name
                   </label>
                   <div className="relative">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
@@ -393,65 +377,91 @@ export default function AuthScreens({
                       value={signupForm.companyName}
                       onChange={(e) => setSignupForm({ ...signupForm, companyName: e.target.value })}
                       className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
-                      placeholder="e.g. Keystone Studio Partners"
+                      placeholder="e.g. Acme Corporation"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
-                      Password
-                    </label>
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Company Contact Email
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      contact_mail
+                    </span>
                     <input
-                      type="password"
+                      type="email"
                       required
-                      minLength={8}
-                      value={signupForm.password}
-                      onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                      className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
-                      placeholder="••••••••"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
-                      Confirm
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      minLength={8}
-                      value={signupForm.confirmPassword}
-                      onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
-                      className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
-                      placeholder="••••••••"
+                      value={signupForm.email}
+                      onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                      placeholder="e.g. hello@acme.com"
                     />
                   </div>
                 </div>
 
-                {/* Password Strength checker */}
-                {signupForm.password.length > 0 && (
-                  <div className="space-y-2.5 p-3.5 rounded-xl bg-surface-container-low border border-border-subtle text-xs">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-secondary uppercase tracking-wider">Password Strength</span>
-                      <span className={`font-bold ${
-                        passwordStrengthScore <= 2 ? 'text-error' :
-                        passwordStrengthScore <= 4 ? 'text-warning' : 'text-success'
-                      }`}>
-                        {passwordStrengthScore <= 2 ? 'Weak' : passwordStrengthScore <= 4 ? 'Fair' : 'Strong'}
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Company Address
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      location_on
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      value={signupForm.companyAddress || ''}
+                      onChange={(e) => setSignupForm({ ...signupForm, companyAddress: e.target.value })}
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                      placeholder="e.g. 123 Studio Way, New York, NY"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Company Number (Phone/Registration)
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      phone
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      value={signupForm.companyNumber || ''}
+                      onChange={(e) => setSignupForm({ ...signupForm, companyNumber: e.target.value })}
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                      placeholder="e.g. +1 (555) 019-2834"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-border-subtle">
+                  <p className="text-xs text-secondary font-semibold uppercase mb-4 tracking-wider">
+                    Company Admin Credentials (Will receive temporary password)
+                  </p>
+                  <div>
+                    <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                      Admin Email Address
+                    </label>
+                    <div className="relative">
+                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                        admin_panel_settings
                       </span>
-                    </div>
-                    <div className="flex gap-1.5">
-                      {[1, 2, 3, 4, 5].map(i => (
-                        <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                          i <= passwordStrengthScore
-                            ? passwordStrengthScore <= 2 ? 'bg-error' : passwordStrengthScore <= 4 ? 'bg-warning' : 'bg-success'
-                            : 'bg-surface-container-high'
-                        }`} />
-                      ))}
+                      <input
+                        type="email"
+                        required
+                        value={signupForm.name} // Map admin email to this form field for simplicity
+                        onChange={(e) => setSignupForm({ ...signupForm, name: e.target.value })}
+                        className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                        placeholder="e.g. admin@acme.com"
+                      />
                     </div>
                   </div>
-                )}
+                </div>
 
                 <div className="pt-2">
                   <button
@@ -462,7 +472,7 @@ export default function AuthScreens({
                     {loading && (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
-                    <span>{loading ? 'Creating workspace...' : 'Register Studio'}</span>
+                    <span>{loading ? 'Creating workspace...' : 'Register SaaS Tenant'}</span>
                   </button>
                 </div>
               </form>
@@ -481,65 +491,62 @@ export default function AuthScreens({
             </div>
           )}
 
-          {/* 3. VERIFICATION VIEW */}
-          {activeTab === 'verify' && (
-            <div className="space-y-8 animate-fade-in text-center">
-              <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-full flex items-center justify-center mx-auto mb-4 select-none">
-                <span className="material-symbols-outlined text-primary text-[32px]">mail</span>
-              </div>
+          {/* 3. FORCE PASSWORD RESET VIEW (First login) */}
+          {activeTab === 'force-reset' && (
+            <div className="space-y-8 animate-fade-in">
               <div>
                 <h1 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight mb-2">
-                  Check Your Inbox
+                  Setup New Password
                 </h1>
-                <p className="text-body-md text-secondary leading-relaxed font-medium">
-                  We sent a 6-digit activation code to <br />
-                  <span className="font-bold text-ink-black">{signupForm.email || sessionStorage.getItem('verifyEmail')}</span>
+                <p className="text-body-lg text-secondary font-medium">
+                  First login detected. Please set a permanent password.
                 </p>
               </div>
 
-              <form onSubmit={handleVerifySubmit} className="space-y-6">
-                <div className="flex justify-center gap-3">
-                  {otpArray.map((digit, i) => (
-                    <input
-                      key={i}
-                      ref={el => otpRefs.current[i] = el}
-                      type="text"
-                      maxLength={1}
-                      value={digit}
-                      onChange={e => handleOtpChange(i, e.target.value)}
-                      onKeyDown={e => handleOtpKeyDown(i, e)}
-                      className="w-11 h-14 text-center text-xl font-bold rounded-xl border border-border-subtle bg-white text-ink-black focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
-                    />
-                  ))}
+              <form onSubmit={handleForceResetSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    New Secure Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                    placeholder="••••••••"
+                  />
                 </div>
 
                 <div className="pt-2">
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-success hover:bg-emerald-600 text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
+                    className="w-full bg-success hover:bg-emerald-600 text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                   >
                     {loading && (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
-                    <span>{loading ? 'Activating account...' : 'Verify Code & Activate'}</span>
+                    <span>Set Permanent Password</span>
                   </button>
                 </div>
               </form>
-
-              <div className="pt-6 border-t border-border-subtle">
-                <p className="text-body-md text-secondary mb-3 font-medium">Didn't receive the email code?</p>
-                <button
-                  onClick={handleResendOtp}
-                  disabled={countdown > 0}
-                  className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline cursor-pointer disabled:text-secondary disabled:no-underline disabled:cursor-not-allowed transition-all"
-                >
-                  <span className={`material-symbols-outlined text-[18px] ${countdown > 0 ? 'animate-spin' : ''}`}>
-                    autorenew
-                  </span>
-                  <span>{countdown > 0 ? `Resend OTP in ${countdown}s` : 'Resend Code'}</span>
-                </button>
-              </div>
             </div>
           )}
 
@@ -557,11 +564,32 @@ export default function AuthScreens({
                   Reset Password
                 </h1>
                 <p className="text-body-md text-secondary font-medium">
-                  Enter your registered email below, and we will send you a reset link.
+                  Enter company and email to receive a password reset link.
                 </p>
               </div>
 
               <form onSubmit={handleResetSubmit} className="space-y-6">
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Company Workspace
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      corporate_fare
+                    </span>
+                    <select
+                      value={selectedCompanyId}
+                      onChange={(e) => setSelectedCompanyId(e.target.value)}
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm appearance-none"
+                    >
+                      <option value="">-- Select Company (Multi-Tenant) --</option>
+                      {companies.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
                     Email Address
@@ -587,6 +615,65 @@ export default function AuthScreens({
                     className="w-full bg-primary hover:bg-primary-container text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] cursor-pointer shadow-sm"
                   >
                     Send Reset Email Link
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 5. EMAIL PASSWORD RESET VIEW (From reset link) */}
+          {activeTab === 'reset-password' && (
+            <div className="space-y-8 animate-fade-in">
+              <div>
+                <h1 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight mb-2">
+                  Enter New Password
+                </h1>
+                <p className="text-body-lg text-secondary font-medium">
+                  Please enter and confirm your new permanent password.
+                </p>
+              </div>
+
+              <form onSubmit={handleResetPasswordSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Confirm Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-primary hover:bg-primary-container text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                  >
+                    {loading && (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    )}
+                    <span>Reset Password</span>
                   </button>
                 </div>
               </form>

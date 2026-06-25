@@ -1,44 +1,46 @@
 import { NextResponse } from 'next/server';
-import { supabase, supabaseAuth, db } from '@/backend/db/client';
-import { emailService } from '@/backend/services/resend';
+import { db, supabase } from '@/backend/db/client';
+import { hashPassword, generateRandomPassword, getAuthContext } from '@/backend/utils/auth';
 import { logActivity } from '@/backend/services/logger';
+import { inviteUserSchema } from '@/backend/utils/validation';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 /**
  * POST /api/admin/invite
- * Admin-only: creates a new user account and sends them a password-setup email.
+ * Admin-only: creates a new user account and sends them a invitation email with credentials.
  * Body: { name, email, role, tenantId, adminId }
- * Role must be one of: architect, staff, client (admin cannot create another admin this way)
+ * Role must be one of: architect, staff, client
  */
 export async function POST(request) {
   try {
-    const { name, email, role, tenantId, adminId } = await request.json();
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId: authTenantId, userId: authAdminId, role: authRole } = auth;
 
-    // --- Basic validation ---
-    if (!name || !email || !role || !tenantId || !adminId) {
-      return NextResponse.json(
-        { error: 'name, email, role, tenantId and adminId are required.' },
-        { status: 400 }
-      );
+    if (authRole !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized. Only admins can invite users.' }, { status: 403 });
     }
 
-    const allowedRoles = ['architect', 'staff', 'client'];
-    if (!allowedRoles.includes(role)) {
-      return NextResponse.json(
-        { error: 'Invalid role. Must be one of: architect, staff, client.' },
-        { status: 400 }
-      );
+    const body = await request.json();
+    const { name, email, role, tenantId, adminId } = body;
+
+    // Enforce tenant isolation: requested tenantId/adminId must match authenticated context
+    if (tenantId !== authTenantId || adminId !== authAdminId) {
+      return NextResponse.json({ error: 'Tenant isolation violation. Cannot invite user under a different tenant.' }, { status: 403 });
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json({ error: 'Invalid email address.' }, { status: 400 });
+    // Validate using Zod
+    const validation = inviteUserSchema.safeParse({ name, email, role, tenantId, adminId });
+    if (!validation.success) {
+      const errorMsg = validation.error.issues.map(e => e.message).join(' ');
+      return NextResponse.json({ error: errorMsg, details: validation.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    // --- Verify the requester is an admin of this tenant ---
-    const adminUser = await db.getUser(adminId);
-    if (!adminUser || adminUser.role !== 'admin' || adminUser.tenant_id !== tenantId) {
+    const adminUser = await db.getUser(authAdminId);
+    if (!adminUser || adminUser.role !== 'admin' || adminUser.tenant_id !== authTenantId) {
       return NextResponse.json(
         { error: 'Unauthorized. Only admins can invite users.' },
         { status: 403 }
@@ -48,86 +50,65 @@ export async function POST(request) {
     const normalizedEmail = email.toLowerCase().trim();
 
     // --- Check if user already exists in public.users ---
-    const { data: existingProfile } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', normalizedEmail)
-      .maybeSingle();
-
+    const existingProfile = await db.getUserByEmail(normalizedEmail);
     if (existingProfile) {
       return NextResponse.json(
-        { error: 'A user with this email already exists in your workspace.' },
+        { error: 'A user with this email already exists in this workspace.' },
         { status: 409 }
       );
     }
 
-    // --- Create user in Supabase Auth (service role, bypasses email confirmation) ---
-    // We use a random temporary password; user will reset via the invite link
-    const tempPassword = `Temp_${Math.random().toString(36).slice(2, 10)}!Kst`;
+    // --- Generate random 16-character demo password ---
+    const demoPassword = generateRandomPassword(16);
+    const passwordHash = await hashPassword(demoPassword);
 
+    // --- Provision user in Supabase Auth to satisfy the foreign key constraint ---
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: normalizedEmail,
-      password: tempPassword,
-      email_confirm: true, // skip email verification — admin already verified intent
-      user_metadata: {
-        name: name.trim(),
-        role,
-        invited_by: adminId,
-        tenant_id: tenantId
-      }
+      password: demoPassword,
+      email_confirm: true
     });
 
     if (authError) {
-      console.error('[Admin Invite] Supabase Auth error:', authError.message);
-      let message = authError.message;
-      if (message.includes('already been registered') || message.includes('already exists')) {
-        message = 'This email address is already registered in Supabase Auth. The user may need to reset their password.';
-      }
-      return NextResponse.json({ error: message }, { status: 400 });
+      return NextResponse.json(
+        { error: `Auth provisioning failed: ${authError.message}` },
+        { status: 400 }
+      );
     }
 
-    const authUser = authData.user;
+    const newUserId = authData.user.id;
 
-    // --- Create user profile in public.users ---
+    // --- Create user profile in PostgreSQL ---
     let userProfile;
     try {
       userProfile = await db.createUser({
-        id: authUser.id,
+        id: newUserId,
         tenant_id: tenantId,
         name: name.trim(),
         email: normalizedEmail,
         role,
         status: 'active',
+        password_hash: passwordHash,
+        needs_password_change: true,
         created_by: adminId
       });
     } catch (dbError) {
       console.error('[Admin Invite] DB profile creation error:', dbError.message);
-      // Attempt cleanup of the auth user to avoid orphaned accounts
-      await supabase.auth.admin.deleteUser(authUser.id);
+      // Clean up auth user
+      await supabase.auth.admin.deleteUser(newUserId);
       return NextResponse.json(
         { error: 'Failed to create user profile. Please try again.' },
         { status: 500 }
       );
     }
 
-    // --- Generate a password-reset link for first-login setup ---
-    const { data: resetData, error: resetError } = await supabase.auth.admin.generateLink({
-      type: 'recovery',
-      email: normalizedEmail,
-      options: { redirectTo: `${SITE_URL}` }
-    });
-
-    let inviteLink = `${SITE_URL}`;
-    if (!resetError && resetData?.properties?.action_link) {
-      inviteLink = resetData.properties.action_link;
-    }
-
-    // --- Send invite email ---
-    await sendInviteEmail(normalizedEmail, name.trim(), role, adminUser.name, inviteLink);
+    // --- Send invitation email ---
+    const loginLink = `${SITE_URL}`;
+    await sendInviteEmail(normalizedEmail, name.trim(), role, adminUser.name, demoPassword, loginLink);
 
     // --- Log activity ---
     try {
-      await logActivity(tenantId, adminId, 'auth', authUser.id, 'User Invited', {
+      await logActivity(tenantId, adminId, 'auth', newUserId, 'User Invited', {
         invitee_email: normalizedEmail,
         role,
         invited_by: adminUser.name
@@ -136,10 +117,10 @@ export async function POST(request) {
       console.warn('[Admin Invite] Activity log failed (non-critical):', logErr.message);
     }
 
-    console.log(`[Admin Invite] ${adminUser.name} invited ${normalizedEmail} as ${role}`);
+    console.log(`[Admin Invite] ${adminUser.name} invited ${normalizedEmail} as ${role} with demo password`);
 
     return NextResponse.json({
-      message: `Invitation sent to ${normalizedEmail}. They will receive an email to set their password.`,
+      message: `Invitation sent to ${normalizedEmail}. They will receive their demo credentials via email.`,
       user: {
         id: userProfile.id,
         name: userProfile.name,
@@ -155,23 +136,28 @@ export async function POST(request) {
   }
 }
 
-async function sendInviteEmail(email, name, role, invitedByName, inviteLink) {
+async function sendInviteEmail(email, name, role, invitedByName, demoPassword, loginLink) {
   const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
   const { Resend } = await import('resend');
   const resendApiKey = process.env.RESEND_API_KEY;
   const senderEmail = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
 
   if (!resendApiKey || resendApiKey.includes('YOUR_')) {
-    console.log(`[Email Mock] Invite email for ${name} <${email}> as ${roleLabel}`);
-    console.log(`[Email Mock] Set-password link: ${inviteLink}`);
+    console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
+    console.log(`║ ✉️  [Email Mock] User Invitation sent to: ${email}`);
+    console.log(`║    Invited As: ${roleLabel}`);
+    console.log(`║    Invited By: ${invitedByName}`);
+    console.log(`║    Demo Password: ${demoPassword}`);
+    console.log(`║    Login Link: ${loginLink}`);
+    console.log(`╚══════════════════════════════════════════════════════════════╝\n`);
     return;
   }
 
   try {
     const resend = new Resend(resendApiKey);
-    await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: `Keystone Studio <${senderEmail}>`,
-      to: [email],
+      to: [process.env.NODE_ENV !== 'production' ? 'balayoghi51@gmail.com' : email],
       subject: `You've been invited to Keystone as ${roleLabel}`,
       html: `
         <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #0f172a; color: #e2e8f0; border-radius: 16px;">
@@ -182,18 +168,25 @@ async function sendInviteEmail(email, name, role, invitedByName, inviteLink) {
           <p style="font-size: 14px; line-height: 1.6; color: #94a3b8; margin-bottom: 8px;">
             Hi <strong style="color: #e2e8f0;">${name}</strong>,
           </p>
-          <p style="font-size: 14px; line-height: 1.6; color: #94a3b8; margin-bottom: 24px;">
-            <strong style="color: #e2e8f0;">${invitedByName}</strong> has invited you to join their workspace on Keystone Studio as a 
+          <p style="font-size: 14px; line-height: 1.6; color: #94a3b8; margin-bottom: 16px;">
+            <strong style="color: #e2e8f0;">${invitedByName}</strong> has invited you to join their workspace on Keystone Studio as an 
             <span style="color: #60a5fa; font-weight: 700;">${roleLabel}</span>.
-            Click the button below to set your password and get started.
+            Here are your temporary login credentials:
+          </p>
+          <div style="background: #1e293b; border: 1px solid #334155; padding: 16px; border-radius: 12px; margin-bottom: 24px; font-family: monospace; font-size: 14px; color: #f1f5f9;">
+            <div style="margin-bottom: 8px;"><strong>Email:</strong> ${email}</div>
+            <div><strong>Demo Password:</strong> <span style="color: #38bdf8;">${demoPassword}</span></div>
+          </div>
+          <p style="font-size: 14px; line-height: 1.6; color: #e2e8f0; font-weight: 600; margin-bottom: 24px;">
+            ⚠️ You will be prompted to change this demo password upon your first login.
           </p>
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${inviteLink}" style="display: inline-block; padding: 14px 32px; background: #2563eb; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; border-radius: 12px; box-shadow: 0 0 15px rgba(37,99,235,0.3);">
-              Set Password &amp; Join Workspace
+            <a href="${loginLink}" style="display: inline-block; padding: 14px 32px; background: #2563eb; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; border-radius: 12px; box-shadow: 0 0 15px rgba(37,99,235,0.3);">
+              Log In &amp; Change Password
             </a>
           </div>
           <p style="font-size: 12px; color: #64748b; line-height: 1.5;">
-            This link expires in 24 hours. If you didn't expect this invitation, you can safely ignore this email.
+            If you didn't expect this invitation, you can safely ignore this email.
           </p>
           <hr style="border: none; border-top: 1px solid #1e293b; margin: 24px 0;" />
           <p style="font-size: 11px; color: #475569; text-align: center;">
@@ -202,7 +195,12 @@ async function sendInviteEmail(email, name, role, invitedByName, inviteLink) {
         </div>
       `
     });
-    console.log(`[Admin Invite] Invite email sent to ${email}`);
+
+    if (error) {
+      console.error('[Admin Invite Email] Resend API Error:', error);
+    } else {
+      console.log(`[Admin Invite] Invite email sent to ${email} (ID: ${data?.id})`);
+    }
   } catch (err) {
     console.error('[Admin Invite] Failed to send invite email:', err.message);
   }
@@ -215,15 +213,30 @@ async function sendInviteEmail(email, name, role, invitedByName, inviteLink) {
  */
 export async function PATCH(request) {
   try {
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId: authTenantId, userId: authAdminId, role: authRole } = auth;
+
+    if (authRole !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized. Admin role required.' }, { status: 403 });
+    }
+
     const { userId, tenantId, adminId, updates } = await request.json();
 
     if (!userId || !tenantId || !adminId || !updates) {
       return NextResponse.json({ error: 'userId, tenantId, adminId and updates are required.' }, { status: 400 });
     }
 
+    // Enforce tenant isolation
+    if (tenantId !== authTenantId || adminId !== authAdminId) {
+      return NextResponse.json({ error: 'Tenant isolation violation. Cannot update user under a different tenant.' }, { status: 403 });
+    }
+
     // Verify requester is admin of this tenant
-    const adminUser = await db.getUser(adminId);
-    if (!adminUser || adminUser.role !== 'admin' || adminUser.tenant_id !== tenantId) {
+    const adminUser = await db.getUser(authAdminId);
+    if (!adminUser || adminUser.role !== 'admin' || adminUser.tenant_id !== authTenantId) {
       return NextResponse.json({ error: 'Unauthorized.' }, { status: 403 });
     }
 

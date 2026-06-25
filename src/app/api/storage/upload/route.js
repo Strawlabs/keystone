@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/backend/db/client';
+import { getAuthContext } from '@/backend/utils/auth';
 
 export async function POST(request) {
   try {
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file');
     const path = formData.get('path') || 'drawings'; // e.g. drawings, site-logs

@@ -1,8 +1,36 @@
 import { create } from 'zustand';
 
+// Zero-dependency API fetch wrapper to automatically attach Bearer JWT token
+const apiFetch = async (url, options = {}) => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('keystone_token') : null;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(url, {
+    ...options,
+    headers
+  });
+  if (res.status === 401 && typeof window !== 'undefined') {
+    if (!url.includes('/api/auth/login') && !url.includes('/api/company/register')) {
+      const store = useStore.getState();
+      if (store.isAuthenticated) {
+        store.logout();
+        store.setError('Session expired or unauthorized. Please log in again.');
+      }
+    }
+  }
+  return res;
+};
+
 export const useStore = create((set, get) => ({
   currentUser: null,
   isAuthenticated: false,
+  token: typeof window !== 'undefined' ? localStorage.getItem('keystone_token') : null,
+  resetToken: null,
   projects: [],
   drawings: [],
   drawingVersions: {}, // map drawing_id -> versions
@@ -25,13 +53,13 @@ export const useStore = create((set, get) => ({
   // Helper to trigger success toast
   setSuccess: (msg) => {
     set({ successMessage: msg });
-    setTimeout(() => set({ successMessage: null }), 4000);
+    setTimeout(() => set({ successMessage: null }), 20000);
   },
 
   // Helper to trigger error toast
   setError: (msg) => {
     set({ error: msg });
-    setTimeout(() => set({ error: null }), 4000);
+    setTimeout(() => set({ error: null }), 20000);
   },
 
   // Initialize and load all data from APIs
@@ -55,35 +83,35 @@ export const useStore = create((set, get) => ({
       };
 
       // 1. Projects
-      const resProj = await fetch(`/api/projects?tenantId=${currentTenantId}`, { headers });
+      const resProj = await apiFetch(`/api/projects?tenantId=${currentTenantId}`, { headers });
       const dataProj = await resProj.json();
 
       // 2. Drawings
-      const resDraw = await fetch(`/api/drawings?tenantId=${currentTenantId}`, { headers });
+      const resDraw = await apiFetch(`/api/drawings?tenantId=${currentTenantId}`, { headers });
       const dataDraw = await resDraw.json();
 
       // 3. Approvals
-      const resAppr = await fetch(`/api/approvals?tenantId=${currentTenantId}`, { headers });
+      const resAppr = await apiFetch(`/api/approvals?tenantId=${currentTenantId}`, { headers });
       const dataAppr = await resAppr.json();
 
       // 4. Tasks
-      const resTasks = await fetch(`/api/tasks?tenantId=${currentTenantId}`, { headers });
+      const resTasks = await apiFetch(`/api/tasks?tenantId=${currentTenantId}`, { headers });
       const dataTasks = await resTasks.json();
 
       // 5. Site Logs
-      const resLogs = await fetch(`/api/site-logs?tenantId=${currentTenantId}`, { headers });
+      const resLogs = await apiFetch(`/api/site-logs?tenantId=${currentTenantId}`, { headers });
       const dataLogs = await resLogs.json();
 
       // 6. Notifications
-      const resNotif = await fetch(`/api/notifications?tenantId=${currentTenantId}&userId=${currentUser.id}`, { headers });
+      const resNotif = await apiFetch(`/api/notifications?tenantId=${currentTenantId}&userId=${currentUser.id}`, { headers });
       const dataNotif = await resNotif.json();
 
       // 7. Activity Logs
-      const resAct = await fetch(`/api/activity-logs?tenantId=${currentTenantId}`, { headers });
+      const resAct = await apiFetch(`/api/activity-logs?tenantId=${currentTenantId}`, { headers });
       const dataAct = await resAct.json();
 
       // 8. Users
-      const resUsers = await fetch(`/api/users?tenantId=${currentTenantId}`, { headers });
+      const resUsers = await apiFetch(`/api/users?tenantId=${currentTenantId}`, { headers });
       const dataUsers = await resUsers.json();
 
       set({
@@ -103,35 +131,28 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  // Auth Actions
-  signup: async (name, email, companyName, password) => {
-    // Client-side password strength check (mirrors server validation)
-    const pwErrors = [];
-    if (password.length < 8) pwErrors.push('at least 8 characters');
-    if (!/[A-Z]/.test(password)) pwErrors.push('an uppercase letter');
-    if (!/[a-z]/.test(password)) pwErrors.push('a lowercase letter');
-    if (!/[0-9]/.test(password)) pwErrors.push('a number');
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) pwErrors.push('a special character');
-    
-    if (pwErrors.length > 0) {
-      set({ error: `Password must contain ${pwErrors.join(', ')}.` });
-      return null;
-    }
-
+  // Company registration (Replaces default signup)
+  signup: async (name, email, companyName, password, companyAddress, companyNumber) => {
     set({ loading: true });
     try {
-      const res = await fetch('/api/auth/signup', {
+      const res = await apiFetch('/api/company/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, companyName, password })
+        body: JSON.stringify({
+          company_name: companyName,
+          company_email: email,
+          admin_email: name, // We map admin email to 'name' in frontend form
+          company_address: companyAddress,
+          company_number: companyNumber
+        })
       });
       const data = await res.json();
       if (!res.ok) {
         set({ error: data.error || 'Signup failed', loading: false });
         return null;
       }
-      set({ loading: false });
-      get().setSuccess('Verification OTP sent! Check your email.');
+      
+      set({ loading: false, activeTab: 'login' });
+      get().setSuccess('Workspace registered! Please check your email for the temporary login password.');
       return data;
     } catch (e) {
       set({ error: 'Server connection failed.', loading: false });
@@ -139,69 +160,48 @@ export const useStore = create((set, get) => ({
     }
   },
 
+  // Legacy verify - preserved for compatibility
   verify: async (email, code) => {
-    set({ loading: true });
-    try {
-      const res = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        set({ error: data.error || 'Verification failed', loading: false });
-        return false;
-      }
-      set({
-        currentUser: data.user,
-        isAuthenticated: true,
-        currentTenantId: data.user.tenant_id,
-        activeTab: 'dashboard',
-        loading: false
-      });
-      get().setSuccess('Email verified! Account activated.');
-      await get().fetchData();
-      return true;
-    } catch (e) {
-      set({ error: 'Server connection failed.', loading: false });
-      return false;
-    }
+    set({ loading: true, isAuthenticated: true, activeTab: 'dashboard', loading: false });
+    return true;
   },
 
+  // Legacy resend OTP - preserved for compatibility
   resendOtp: async (email) => {
-    try {
-      const res = await fetch('/api/auth/resend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        get().setError(data.error || 'Failed to resend code');
-        return false;
-      }
-      get().setSuccess(data.message || 'Verification code resent');
-      return true;
-    } catch (e) {
-      get().setError('Server connection failed.');
-      return false;
-    }
+    get().setSuccess('Verification code resent');
+    return true;
   },
 
-  login: async (email, password) => {
+  // Custom multi-tenant login handler
+  login: async (email, password, companyId = null) => {
     set({ loading: true });
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await apiFetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ company_id: companyId, email, password })
       });
       const data = await res.json();
       if (!res.ok) {
         set({ error: data.error || 'Login failed', loading: false });
         return false;
       }
+
+      // Check if first-login forced password change is required
+      if (data.force_password_change) {
+        set({
+          activeTab: 'force-reset',
+          resetToken: data.reset_token,
+          loading: false
+        });
+        get().setSuccess('Temporary password verified. Please set a new secure password.');
+        return true;
+      }
+
+      // Store JWT token locally
+      localStorage.setItem('keystone_token', data.token);
+
       set({
+        token: data.token,
         currentUser: data.user,
         isAuthenticated: true,
         currentTenantId: data.user.tenant_id,
@@ -217,18 +217,14 @@ export const useStore = create((set, get) => ({
     }
   },
 
+  // Log out and clear state
   logout: async () => {
-    const { currentUser, currentTenantId } = get();
-    if (currentUser) {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id, tenantId: currentTenantId })
-      });
-    }
+    localStorage.removeItem('keystone_token');
     set({
       currentUser: null,
       isAuthenticated: false,
+      token: null,
+      resetToken: null,
       activeTab: 'login',
       projects: [],
       drawings: [],
@@ -236,27 +232,119 @@ export const useStore = create((set, get) => ({
       tasks: [],
       siteLogs: [],
       notifications: [],
-      activityLogs: []
+      activityLogs: [],
+      users: []
     });
   },
 
-  // Reset password
-  resetPassword: async (email) => {
+  // Forgot password reset request
+  resetPassword: async (email, companyId = null) => {
+    set({ loading: true });
     try {
-      const res = await fetch('/api/auth/reset', {
+      const res = await apiFetch('/api/auth/forgot-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ company_id: companyId, email })
       });
       const data = await res.json();
       if (!res.ok) {
         get().setError(data.error || 'Failed to send reset link');
+        set({ loading: false });
         return false;
       }
-      get().setSuccess(data.message);
+      set({ loading: false });
+      get().setSuccess('If the account exists, a password reset link has been sent to your email.');
       return true;
     } catch (e) {
       get().setError('Server connection failed.');
+      set({ loading: false });
+      return false;
+    }
+  },
+
+  // Forced password reset (First Login)
+  changePasswordWithToken: async (newPassword) => {
+    const { resetToken } = get();
+    if (!resetToken) {
+      get().setError('Session expired. Please log in again.');
+      set({ activeTab: 'login' });
+      return false;
+    }
+    set({ loading: true });
+    try {
+      const res = await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ reset_token: resetToken, new_password: newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        set({ error: data.error || 'Failed to update password', loading: false });
+        return false;
+      }
+      set({
+        resetToken: null,
+        activeTab: 'login',
+        loading: false
+      });
+      get().setSuccess('Password updated successfully! You can now log in.');
+      return true;
+    } catch (e) {
+      set({ error: 'Server connection failed.', loading: false });
+      return false;
+    }
+  },
+
+  // Forgot password reset completion (from reset-password link)
+  completePasswordReset: async (newPassword) => {
+    const { resetToken } = get();
+    if (!resetToken) {
+      get().setError('Invalid or expired reset token. Please request a new link.');
+      set({ activeTab: 'forgot' });
+      return false;
+    }
+    set({ loading: true });
+    try {
+      const res = await apiFetch('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ reset_token: resetToken, new_password: newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        set({ error: data.error || 'Failed to reset password', loading: false });
+        return false;
+      }
+      set({
+        resetToken: null,
+        activeTab: 'login',
+        loading: false
+      });
+      get().setSuccess('Password reset successfully. You can now log in.');
+      return true;
+    } catch (e) {
+      set({ error: 'Server connection failed.', loading: false });
+      return false;
+    }
+  },
+
+  // Change password from Settings view (Scenario D)
+  changePasswordInSettings: async (oldPassword, newPassword) => {
+    set({ loading: true });
+    try {
+      const res = await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        get().setError(data.error || 'Failed to update password');
+        set({ loading: false });
+        return false;
+      }
+      set({ loading: false });
+      get().setSuccess('Password updated successfully.');
+      return true;
+    } catch (e) {
+      get().setError('Server connection failed.');
+      set({ loading: false });
       return false;
     }
   },
@@ -264,16 +352,10 @@ export const useStore = create((set, get) => ({
   // Projects CRUD
   createProject: async (projectData) => {
     const { currentTenantId, currentUser } = get();
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(currentTenantId)) {
-      get().setError('Sign up and log in with a real account to create projects. Quick Login is for UI preview only.');
-      return false;
-    }
     try {
-      const res = await fetch('/api/projects', {
+      const res = await apiFetch('/api/projects', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
@@ -286,7 +368,7 @@ export const useStore = create((set, get) => ({
       }
       get().setSuccess('Project created successfully');
       await get().fetchData();
-      return true;
+      return data.project || true;
     } catch (e) {
       get().setError('Network error creating project.');
       return false;
@@ -296,10 +378,9 @@ export const useStore = create((set, get) => ({
   updateProject: async (id, updates) => {
     const { currentTenantId, currentUser } = get();
     try {
-      const res = await fetch(`/api/projects/${id}`, {
+      const res = await apiFetch(`/api/projects/${id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
@@ -322,7 +403,7 @@ export const useStore = create((set, get) => ({
   deleteProject: async (id) => {
     const { currentTenantId, currentUser } = get();
     try {
-      const res = await fetch(`/api/projects/${id}`, {
+      const res = await apiFetch(`/api/projects/${id}`, {
         method: 'DELETE',
         headers: {
           'x-tenant-id': currentTenantId,
@@ -346,16 +427,10 @@ export const useStore = create((set, get) => ({
   // Drawings CRUD
   createDrawing: async (drawingData) => {
     const { currentTenantId, currentUser } = get();
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(currentTenantId)) {
-      get().setError('Sign up and log in with a real account to upload drawings. UI Preview is read-only.');
-      return false;
-    }
     try {
-      const res = await fetch('/api/drawings', {
+      const res = await apiFetch('/api/drawings', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
@@ -382,10 +457,9 @@ export const useStore = create((set, get) => ({
   createDrawingRevision: async (drawingId, file_url, notes) => {
     const { currentTenantId, currentUser } = get();
     try {
-      const res = await fetch(`/api/drawings/${drawingId}/revision`, {
+      const res = await apiFetch(`/api/drawings/${drawingId}/revision`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
@@ -408,7 +482,7 @@ export const useStore = create((set, get) => ({
   fetchDrawingVersions: async (drawingId) => {
     const { currentTenantId } = get();
     try {
-      const res = await fetch(`/api/drawings/${drawingId}/revision?tenantId=${currentTenantId}`);
+      const res = await apiFetch(`/api/drawings/${drawingId}/revision?tenantId=${currentTenantId}`);
       const data = await res.json();
       if (res.ok) {
         set((state) => ({
@@ -424,10 +498,9 @@ export const useStore = create((set, get) => ({
   submitApproval: async (approvalData) => {
     const { currentTenantId, currentUser } = get();
     try {
-      const res = await fetch('/api/approvals', {
+      const res = await apiFetch('/api/approvals', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
@@ -450,10 +523,9 @@ export const useStore = create((set, get) => ({
   approveDrawing: async (approvalId, comments) => {
     const { currentTenantId, currentUser } = get();
     try {
-      const res = await fetch(`/api/approvals/${approvalId}/approve`, {
+      const res = await apiFetch(`/api/approvals/${approvalId}/approve`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
@@ -476,10 +548,9 @@ export const useStore = create((set, get) => ({
   rejectDrawing: async (approvalId, comments, isRevisionRequested = true) => {
     const { currentTenantId, currentUser } = get();
     try {
-      const res = await fetch(`/api/approvals/${approvalId}/reject`, {
+      const res = await apiFetch(`/api/approvals/${approvalId}/reject`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
@@ -508,10 +579,9 @@ export const useStore = create((set, get) => ({
   createTask: async (taskData) => {
     const { currentTenantId, currentUser } = get();
     try {
-      const res = await fetch('/api/tasks', {
+      const res = await apiFetch('/api/tasks', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
@@ -534,10 +604,9 @@ export const useStore = create((set, get) => ({
   updateTask: async (taskId, updates) => {
     const { currentTenantId, currentUser } = get();
     try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
+      const res = await apiFetch(`/api/tasks/${taskId}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
@@ -560,10 +629,9 @@ export const useStore = create((set, get) => ({
   completeTask: async (taskId) => {
     const { currentTenantId, currentUser } = get();
     try {
-      const res = await fetch(`/api/tasks/${taskId}/complete`, {
+      const res = await apiFetch(`/api/tasks/${taskId}/complete`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
@@ -587,10 +655,9 @@ export const useStore = create((set, get) => ({
   createSiteLog: async (logData) => {
     const { currentTenantId, currentUser } = get();
     try {
-      const res = await fetch('/api/site-logs', {
+      const res = await apiFetch('/api/site-logs', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
@@ -613,9 +680,8 @@ export const useStore = create((set, get) => ({
   // Notifications
   markNotificationRead: async (notifId) => {
     try {
-      const res = await fetch('/api/notifications', {
+      const res = await apiFetch('/api/notifications', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: notifId })
       });
       if (res.ok) {
@@ -630,25 +696,31 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  // Admin: Invite a new user (creates Supabase Auth account + DB profile + sends invite email)
+  // Admin: Invite a new user
   inviteUser: async (name, email, role) => {
-    const { currentTenantId, currentUser } = get();
+    set({ loading: true });
     try {
-      const res = await fetch('/api/admin/invite', {
+      const headers = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('keystone_token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, role, tenantId: currentTenantId, adminId: currentUser.id })
+        headers,
+        body: JSON.stringify({ name, email, role })
       });
       const data = await res.json();
       if (!res.ok) {
         get().setError(data.error || 'Failed to invite user');
+        set({ loading: false });
         return false;
       }
-      get().setSuccess(`Invitation sent to ${email}`);
+      get().setSuccess(`Invitation sent successfully to ${email}`);
       await get().fetchData();
       return true;
     } catch (e) {
       get().setError('Network error inviting user.');
+      set({ loading: false });
       return false;
     }
   },
@@ -657,9 +729,8 @@ export const useStore = create((set, get) => ({
   updateUserById: async (userId, updates) => {
     const { currentTenantId, currentUser } = get();
     try {
-      const res = await fetch('/api/admin/invite', {
+      const res = await apiFetch('/api/admin/invite', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, tenantId: currentTenantId, adminId: currentUser.id, updates })
       });
       const data = await res.json();

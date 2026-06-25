@@ -246,3 +246,21 @@ create policy tenant_isolation_notifications on public.notifications
 -- Activity Logs policy
 create policy tenant_isolation_activity_logs on public.activity_logs
     for all using (tenant_id = public.current_user_tenant_id());
+
+
+-- ==========================================
+-- MULTI-TENANT AUTH SYSTEM MIGRATION (NEW)
+-- Add columns to tenants and users for custom JWT and password auth
+-- ==========================================
+
+-- 1. Extend tenants table with company_email
+alter table public.tenants add column if not exists company_email text unique;
+alter table public.tenants add column if not exists company_address text;
+alter table public.tenants add column if not exists company_number text;
+
+-- 2. Extend users table for custom credentials
+alter table public.users add column if not exists password_hash text;
+alter table public.users add column if not exists needs_password_change boolean default true;
+alter table public.users add column if not exists created_by uuid references public.users(id) on delete set null;
+alter table public.users add column if not exists last_login timestamp with time zone;
+

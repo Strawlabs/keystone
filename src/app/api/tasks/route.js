@@ -2,12 +2,17 @@ import { NextResponse } from 'next/server';
 import { db } from '@/backend/db';
 import { logActivity } from '@/backend/services/activity';
 import { createNotification } from '@/backend/services/notificationHelper';
+import { getAuthContext } from '@/backend/utils/auth';
+import { createTaskSchema } from '@/backend/utils/validation';
 
 export async function GET(request) {
   try {
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId } = auth;
     const { searchParams } = new URL(request.url);
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const tenantId = headerTenantId || searchParams.get('tenantId') || 't1';
     const projectId = searchParams.get('projectId');
 
     const tasks = await db.getTasks(tenantId, projectId);
@@ -20,17 +25,36 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const headerUserId = request.headers.get('x-user-id');
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId, userId } = auth;
 
     const body = await request.json();
-    const tenantId = headerTenantId || body.tenant_id || 't1';
-    const userId = headerUserId || body.created_by || 'u1';
+    const validation = createTaskSchema.safeParse(body);
+    if (!validation.success) {
+      const errorMsg = validation.error.issues.map(e => e.message).join(' ');
+      return NextResponse.json({ error: errorMsg, details: validation.error.flatten().fieldErrors }, { status: 400 });
+    }
 
-    const { project_id, title, description, assigned_to, priority, due_date } = body;
+    const { project_id, title, description, assigned_to, priority, due_date } = validation.data;
 
-    if (!project_id || !title || !priority) {
-      return NextResponse.json({ error: 'Project ID, task title, and priority are required.' }, { status: 400 });
+    // Verify project belongs to tenant
+    const project = await db.getProject(project_id);
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
+    }
+    if (project.tenant_id !== tenantId) {
+      return NextResponse.json({ error: 'Unauthorized: Project belongs to another tenant.' }, { status: 403 });
+    }
+
+    // Verify assigned user belongs to tenant (if provided)
+    if (assigned_to) {
+      const assignee = await db.getUser(assigned_to);
+      if (!assignee || assignee.tenant_id !== tenantId) {
+        return NextResponse.json({ error: 'Unauthorized: Assigned user belongs to another tenant.' }, { status: 403 });
+      }
     }
 
     const newTask = await db.createTask({
@@ -38,7 +62,7 @@ export async function POST(request) {
       tenant_id: tenantId,
       title,
       description,
-      assigned_to,
+      assigned_to: assigned_to || null,
       priority,
       status: 'pending',
       due_date

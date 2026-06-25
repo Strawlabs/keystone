@@ -2,12 +2,16 @@ import { NextResponse } from 'next/server';
 import { db } from '@/backend/db';
 import { logActivity } from '@/backend/services/activity';
 import { createNotification } from '@/backend/services/notificationHelper';
+import { getAuthContext } from '@/backend/utils/auth';
+import { createApprovalSchema } from '@/backend/utils/validation';
 
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const tenantId = headerTenantId || searchParams.get('tenantId') || 't1';
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId } = auth;
 
     const approvals = await db.getApprovals(tenantId);
     return NextResponse.json({ approvals });
@@ -19,22 +23,34 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const headerUserId = request.headers.get('x-user-id');
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId, userId } = auth;
 
     const body = await request.json();
-    const tenantId = headerTenantId || body.tenant_id || 't1';
-    const userId = headerUserId || body.submitted_by || 'u2'; // default to architect user
-
-    const { drawing_id, client_id, comments } = body;
-
-    if (!drawing_id || !client_id) {
-      return NextResponse.json({ error: 'Drawing ID and Client ID are required.' }, { status: 400 });
+    const validation = createApprovalSchema.safeParse(body);
+    if (!validation.success) {
+      const errorMsg = validation.error.issues.map(e => e.message).join(' ');
+      return NextResponse.json({ error: errorMsg, details: validation.error.flatten().fieldErrors }, { status: 400 });
     }
+
+    const { drawing_id, client_id, comments } = validation.data;
 
     const drawing = await db.getDrawing(drawing_id);
     if (!drawing) {
       return NextResponse.json({ error: 'Drawing not found.' }, { status: 404 });
+    }
+
+    if (drawing.tenant_id !== tenantId) {
+      return NextResponse.json({ error: 'Unauthorized: Drawing belongs to another tenant.' }, { status: 403 });
+    }
+
+    // Verify client belongs to this tenant too
+    const client = await db.getUser(client_id);
+    if (!client || client.tenant_id !== tenantId || client.role !== 'client') {
+      return NextResponse.json({ error: 'Unauthorized: Invalid client selected.' }, { status: 403 });
     }
 
     const newApproval = await db.createApproval({

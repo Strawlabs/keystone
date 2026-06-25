@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/backend/db';
 import { logActivity } from '@/backend/services/activity';
+import { getAuthContext } from '@/backend/utils/auth';
+import { updateProjectSchema } from '@/backend/utils/validation';
 
 export async function PUT(request, { params }) {
   try {
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId, userId } = auth;
     const { id } = await params;
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const headerUserId = request.headers.get('x-user-id');
-
-    const body = await request.json();
-    const tenantId = headerTenantId || body.tenant_id || 't1';
-    const userId = headerUserId || body.user_id || 'u1';
 
     const project = await db.getProject(id);
     if (!project) {
@@ -21,7 +22,14 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized: Tenant mismatch' }, { status: 403 });
     }
 
-    const { name, client_name, client_email, location, description, status, start_date, end_date } = body;
+    const body = await request.json();
+    const validation = updateProjectSchema.safeParse(body);
+    if (!validation.success) {
+      const errorMsg = validation.error.issues.map(e => e.message).join(' ');
+      return NextResponse.json({ error: errorMsg, details: validation.error.flatten().fieldErrors }, { status: 400 });
+    }
+
+    const { name, client_name, client_email, location, description, status, start_date, end_date } = validation.data;
 
     const updates = {};
     if (name !== undefined) updates.name = name;
@@ -57,12 +65,12 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
+    const auth = getAuthContext(request);
+    if (!auth.isAuthenticated) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+    const { tenantId, userId } = auth;
     const { id } = await params;
-    const headerTenantId = request.headers.get('x-tenant-id');
-    const headerUserId = request.headers.get('x-user-id');
-    
-    const tenantId = headerTenantId || 't1';
-    const userId = headerUserId || 'u1';
 
     const project = await db.getProject(id);
     if (!project) {
