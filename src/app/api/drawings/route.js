@@ -14,8 +14,11 @@ export async function GET(request) {
     const { tenantId } = auth;
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
+    const search = searchParams.get('search') || '';
+    const sort = searchParams.get('sort') || 'created_at_desc';
+    const category = searchParams.get('category') || '';
 
-    const drawings = await db.getDrawings(tenantId, projectId);
+    const drawings = await db.getDrawings(tenantId, projectId, { search, sort, category });
     return NextResponse.json({ drawings });
   } catch (error) {
     console.error('Get Drawings API Error:', error);
@@ -38,7 +41,7 @@ export async function POST(request) {
       return NextResponse.json({ error: errorMsg, details: validation.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    const { project_id, name, category, file_url, revision_notes } = body;
+    const { project_id, name, drawing_number, category, file_url, storage_path, revision_notes } = body;
 
     // Cross-tenant verification: Ensure the project exists and belongs to the authenticated user's tenant
     const project = await db.getProject(project_id);
@@ -53,8 +56,10 @@ export async function POST(request) {
       project_id,
       tenant_id: tenantId,
       name,
+      drawing_number: drawing_number || null,
       category,
       file_url,
+      storage_path: storage_path || null,
       uploaded_by: userId
     }, revision_notes || 'Initial drawing upload.');
 

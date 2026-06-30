@@ -49,6 +49,8 @@ export const useStore = create((set, get) => ({
   loading: false,
   error: null,
   successMessage: null,
+  drawingSort: 'created_at_desc', // 'created_at_desc' | 'name_asc' | 'name_desc' | 'revision_desc'
+  _signedUrlCache: {}, // { storagePath -> { url, expiresAt } }
 
   // Helper to trigger success toast
   setSuccess: (msg) => {
@@ -132,7 +134,7 @@ export const useStore = create((set, get) => ({
   },
 
   // Company registration (Replaces default signup)
-  signup: async (name, email, companyName, password, companyAddress, companyNumber) => {
+  signup: async (name, adminName, email, companyName, companyAddress, companyNumber) => {
     set({ loading: true });
     try {
       const res = await apiFetch('/api/company/register', {
@@ -140,7 +142,8 @@ export const useStore = create((set, get) => ({
         body: JSON.stringify({
           company_name: companyName,
           company_email: email,
-          admin_email: name, // We map admin email to 'name' in frontend form
+          admin_name: adminName,
+          admin_email: name, // 'name' arg holds the admin email (from the form's admin email field)
           company_address: companyAddress,
           company_number: companyNumber
         })
@@ -454,7 +457,74 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  createDrawingRevision: async (drawingId, file_url, notes) => {
+  deleteDrawing: async (drawingId) => {
+    const { currentTenantId, currentUser } = get();
+    try {
+      const res = await apiFetch(`/api/drawings/${drawingId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-tenant-id': currentTenantId,
+          'x-user-id': currentUser.id,
+          'x-user-role': currentUser.role
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        get().setError(data.error || 'Failed to delete drawing');
+        return false;
+      }
+      get().setSuccess('Drawing deleted successfully');
+      await get().fetchData();
+      return true;
+    } catch (e) {
+      get().setError('Network error deleting drawing.');
+      return false;
+    }
+  },
+
+  // Get a signed download URL for a private storage path (with 55-min cache)
+  getSignedUrl: async (storagePath) => {
+    if (!storagePath) return null;
+
+    // Check cache
+    const cache = get()._signedUrlCache;
+    const cached = cache[storagePath];
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.url;
+    }
+
+    const { currentTenantId, currentUser } = get();
+    try {
+      const res = await apiFetch('/api/storage/signed-url', {
+        method: 'POST',
+        headers: {
+          'x-tenant-id': currentTenantId,
+          'x-user-id': currentUser?.id
+        },
+        body: JSON.stringify({ storagePath })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.signedUrl) return null;
+
+      // Cache for 55 minutes (slightly less than server TTL of 60 min)
+      set((state) => ({
+        _signedUrlCache: {
+          ...state._signedUrlCache,
+          [storagePath]: {
+            url: data.signedUrl,
+            expiresAt: Date.now() + 55 * 60 * 1000
+          }
+        }
+      }));
+
+      return data.signedUrl;
+    } catch (e) {
+      console.error('Failed to get signed URL:', e);
+      return null;
+    }
+  },
+
+  createDrawingRevision: async (drawingId, file_url, notes, storage_path) => {
     const { currentTenantId, currentUser } = get();
     try {
       const res = await apiFetch(`/api/drawings/${drawingId}/revision`, {
@@ -463,7 +533,13 @@ export const useStore = create((set, get) => ({
           'x-tenant-id': currentTenantId,
           'x-user-id': currentUser.id
         },
-        body: JSON.stringify({ file_url, notes, tenant_id: currentTenantId, uploaded_by: currentUser.id })
+        body: JSON.stringify({
+          file_url,
+          storage_path: storage_path || null,
+          notes,
+          tenant_id: currentTenantId,
+          uploaded_by: currentUser.id
+        })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -751,5 +827,6 @@ export const useStore = create((set, get) => ({
   setTab: (tab) => set({ activeTab: tab }),
   setSelectedProjectId: (id) => set({ selectedProjectId: id }),
   setSelectedDrawingId: (id) => set({ selectedDrawingId: id }),
-  setSelectedApprovalId: (id) => set({ selectedApprovalId: id })
+  setSelectedApprovalId: (id) => set({ selectedApprovalId: id }),
+  setDrawingSort: (sort) => set({ drawingSort: sort })
 }));

@@ -69,8 +69,14 @@ create table public.drawings (
     project_id uuid not null references public.projects(id) on delete cascade,
     tenant_id uuid not null references public.tenants(id) on delete cascade,
     name text not null,
-    category text not null check (category in ('architectural', 'structural', 'interior', 'electrical', 'plumbing', 'elevation', 'miscellaneous')),
+    drawing_number text,
+    category text not null check (category in (
+        'architectural', 'structural', 'interior', 'electrical',
+        'plumbing', 'elevation', 'miscellaneous',
+        'site_photos', 'project_documents'
+    )),
     file_url text not null,
+    storage_path text,
     current_revision integer not null default 1,
     uploaded_by uuid references public.users(id) on delete set null,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
@@ -86,6 +92,7 @@ create table public.drawing_versions (
     revision_number integer not null,
     revision_notes text,
     file_url text not null,
+    storage_path text,
     uploaded_by uuid references public.users(id) on delete set null,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     unique (drawing_id, revision_number)

@@ -21,6 +21,7 @@ export async function POST(request, { params }) {
     }
 
     const { file_url, notes } = validation.data;
+    const { storage_path } = body;
 
     const drawing = await db.getDrawing(id);
     if (!drawing) {
@@ -33,6 +34,7 @@ export async function POST(request, { params }) {
 
     const result = await db.createDrawingRevision(id, {
       file_url,
+      storage_path: storage_path || null,
       notes,
       uploaded_by: userId
     });

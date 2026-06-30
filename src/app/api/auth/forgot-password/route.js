@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/backend/db/client';
 import { generateResetToken } from '@/backend/utils/auth';
-import { emailService } from '@/backend/services/resend';
+import { emailService } from '@/backend/services/gmail';
 import { logActivity } from '@/backend/services/logger';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
@@ -72,56 +72,8 @@ export async function POST(request) {
 }
 
 async function sendResetEmail(email, resetUrl) {
-  const { Resend } = await import('resend');
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const senderEmail = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
-
-  if (!resendApiKey || resendApiKey.includes('YOUR_')) {
-    console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
-    console.log(`║ ✉️  [Email Mock] Password Reset Link sent to: ${email}`);
-    console.log(`║    Reset Link: ${resetUrl}`);
-    console.log(`╚══════════════════════════════════════════════════════════════╝\n`);
-    return;
-  }
-
-  try {
-    const resend = new Resend(resendApiKey);
-    const { data, error } = await resend.emails.send({
-      from: `Keystone Studio <${senderEmail}>`,
-      to: [process.env.NODE_ENV !== 'production' ? 'balayoghi51@gmail.com' : email],
-      subject: 'Reset Your Keystone Password',
-      html: `
-        <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #0f172a; color: #e2e8f0; border-radius: 16px;">
-          <div style="text-align: center; margin-bottom: 32px;">
-            <h1 style="font-size: 22px; font-weight: 700; color: #ffffff; margin: 0;">🏗️ Keystone Studio</h1>
-          </div>
-          <h2 style="font-size: 18px; font-weight: 600; color: #ffffff; margin-bottom: 12px;">Password Reset Request</h2>
-          <p style="font-size: 14px; line-height: 1.6; color: #94a3b8; margin-bottom: 24px;">
-            We received a request to reset the password for your Keystone account (<strong style="color: #e2e8f0;">${email}</strong>).
-            Click the button below to set a new password.
-          </p>
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${resetUrl}" style="display: inline-block; padding: 14px 32px; background: #2563eb; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; border-radius: 12px; box-shadow: 0 0 15px rgba(37,99,235,0.3);">
-              Reset Password
-            </a>
-          </div>
-          <p style="font-size: 12px; color: #64748b; line-height: 1.5;">
-            This link is valid for 15 minutes. If you did not request a password reset, you can safely ignore this email.
-          </p>
-          <hr style="border: none; border-top: 1px solid #1e293b; margin: 24px 0;" />
-          <p style="font-size: 11px; color: #475569; text-align: center;">
-            © ${new Date().getFullYear()} Keystone Studio Inc. All rights reserved.
-          </p>
-        </div>
-      `
-    });
-
-    if (error) {
-      console.error('[Forgot Password Email] Resend API Error:', error);
-    } else {
-      console.log(`[Forgot Password] Reset email sent to ${email} (ID: ${data?.id})`);
-    }
-  } catch (err) {
-    console.error('[Forgot Password Email] Failed to send email:', err.message);
+  const result = await emailService.sendPasswordResetEmail(email, resetUrl);
+  if (result?.success && !result?.mock) {
+    console.log(`[Forgot Password] Reset email sent to ${email}`);
   }
 }

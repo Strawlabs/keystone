@@ -60,14 +60,37 @@ export const createSiteLogSchema = z.object({
 export const createDrawingSchema = z.object({
   project_id: z.string().uuid('Invalid Project ID.'),
   name: z.string().min(1, 'Drawing Name is required.'),
-  category: z.enum(['architectural', 'structural', 'interior', 'electrical', 'plumbing', 'elevation', 'miscellaneous']),
-  file_url: z.string().url('Invalid File URL.')
+  drawing_number: z.string().optional(),
+  category: z.enum([
+    'architectural', 'structural', 'interior', 'electrical',
+    'plumbing', 'elevation', 'miscellaneous',
+    'site_photos', 'project_documents'
+  ], { errorMap: () => ({ message: 'Invalid drawing category.' }) }),
+  file_url: z.string().min(1, 'File URL is required.'),
+  storage_path: z.string().optional()
+});
+
+// Update drawing metadata
+export const updateDrawingSchema = z.object({
+  name: z.string().min(1, 'Drawing Name is required.').optional(),
+  drawing_number: z.string().optional(),
+  category: z.enum([
+    'architectural', 'structural', 'interior', 'electrical',
+    'plumbing', 'elevation', 'miscellaneous',
+    'site_photos', 'project_documents'
+  ]).optional()
 });
 
 // Create drawing revision
 export const createDrawingRevisionSchema = z.object({
-  file_url: z.string().url('Invalid File URL.'),
+  file_url: z.string().min(1, 'File URL is required.'),
+  storage_path: z.string().optional(),
   notes: z.string().min(1, 'Revision notes are required.')
+});
+
+// Get signed URL
+export const getSignedUrlSchema = z.object({
+  storagePath: z.string().min(1, 'Storage path is required.')
 });
 
 // Create approval request

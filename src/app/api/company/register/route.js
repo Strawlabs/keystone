@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server';
 import { db, supabase } from '@/backend/db/client';
 import { hashPassword, generateRandomPassword } from '@/backend/utils/auth';
-import { emailService } from '@/backend/services/resend';
+import { emailService } from '@/backend/services/gmail';
 import { logActivity } from '@/backend/services/logger';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 export async function POST(request) {
   try {
-    const { company_name, company_email, admin_email, company_address, company_number } = await request.json();
+    const { company_name, company_email, admin_email, admin_name, company_address, company_number } = await request.json();
 
-    if (!company_name || !company_email || !admin_email || !company_address || !company_number) {
+    if (!company_name || !company_email || !admin_email || !admin_name || !company_address || !company_number) {
       return NextResponse.json(
-        { error: 'All fields are required: Company Name, Company Email, Admin Email, Company Address, and Company Number.' },
+        { error: 'All fields are required: Company Name, Company Email, Admin Name, Admin Email, Company Address, and Company Number.' },
         { status: 400 }
       );
     }
@@ -94,7 +94,7 @@ export async function POST(request) {
       adminUser = await db.createUser({
         id: adminId,
         tenant_id: newTenant.id,
-        name: 'Company Admin',
+        name: admin_name.trim(),
         email: normalizedAdminEmail,
         role: 'admin',
         status: 'active',
@@ -144,68 +144,8 @@ export async function POST(request) {
 }
 
 async function sendWelcomeEmail(email, companyName, tempPassword, loginLink) {
-  const { Resend } = await import('resend');
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const senderEmail = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
-
-  if (!resendApiKey || resendApiKey.includes('YOUR_')) {
-    console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
-    console.log(`║ ✉️  [Email Mock] Welcome Email sent to: ${email}`);
-    console.log(`║    Company Name: ${companyName}`);
-    console.log(`║    Temp Password: ${tempPassword}`);
-    console.log(`║    Login Link: ${loginLink}`);
-    console.log(`╚══════════════════════════════════════════════════════════════╝\n`);
-    return;
-  }
-
-  try {
-    const resend = new Resend(resendApiKey);
-    const { data, error } = await resend.emails.send({
-      from: `Keystone Studio <${senderEmail}>`,
-      to: [process.env.NODE_ENV !== 'production' ? 'balayoghi51@gmail.com' : email],
-      subject: `Welcome to Keystone - Your Admin Account is Ready`,
-      html: `
-        <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #0f172a; color: #e2e8f0; border-radius: 16px;">
-          <div style="text-align: center; margin-bottom: 32px;">
-            <h1 style="font-size: 22px; font-weight: 700; color: #ffffff; margin: 0;">🏗️ Keystone Studio</h1>
-          </div>
-          <h2 style="font-size: 18px; font-weight: 600; color: #ffffff; margin-bottom: 12px;">Your Admin Account is Ready</h2>
-          <p style="font-size: 14px; line-height: 1.6; color: #94a3b8; margin-bottom: 8px;">
-            Hi there,
-          </p>
-          <p style="font-size: 14px; line-height: 1.6; color: #94a3b8; margin-bottom: 16px;">
-            Your workspace for <strong style="color: #e2e8f0;">${companyName}</strong> has been successfully set up on Keystone Studio.
-            Here are your temporary administrative login credentials:
-          </p>
-          <div style="background: #1e293b; border: 1px solid #334155; padding: 16px; border-radius: 12px; margin-bottom: 24px; font-family: monospace; font-size: 14px; color: #f1f5f9;">
-            <div style="margin-bottom: 8px;"><strong>Email:</strong> ${email}</div>
-            <div><strong>Temporary Password:</strong> <span style="color: #38bdf8;">${tempPassword}</span></div>
-          </div>
-          <p style="font-size: 14px; line-height: 1.6; color: #e2e8f0; font-weight: 600; margin-bottom: 24px;">
-            ⚠️ You will be prompted to change this temporary password upon your first login.
-          </p>
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${loginLink}" style="display: inline-block; padding: 14px 32px; background: #2563eb; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; border-radius: 12px; box-shadow: 0 0 15px rgba(37,99,235,0.3);">
-              Access Your Dashboard
-            </a>
-          </div>
-          <p style="font-size: 12px; color: #64748b; line-height: 1.5;">
-            If you didn't request this workspace setup, you can safely ignore this email.
-          </p>
-          <hr style="border: none; border-top: 1px solid #1e293b; margin: 24px 0;" />
-          <p style="font-size: 11px; color: #475569; text-align: center;">
-            © ${new Date().getFullYear()} Keystone Studio Inc. All rights reserved.
-          </p>
-        </div>
-      `
-    });
-
-    if (error) {
-      console.error('[Company Reg Email] Resend API Error:', error);
-    } else {
-      console.log(`[Company Reg] Invite email sent to ${email} (ID: ${data?.id})`);
-    }
-  } catch (err) {
-    console.error('[Company Reg] Failed to send invite email:', err.message);
+  const result = await emailService.sendCompanyWelcomeEmail({ email, companyName, tempPassword, loginLink });
+  if (result?.success && !result?.mock) {
+    console.log(`[Company Reg] Welcome email sent to ${email}`);
   }
 }

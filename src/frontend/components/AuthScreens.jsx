@@ -112,21 +112,22 @@ export default function AuthScreens({
 
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
-    if (!signupForm.companyName || !signupForm.email || !signupForm.name || !signupForm.companyAddress || !signupForm.companyNumber) {
+    if (!signupForm.companyName || !signupForm.email || !signupForm.adminName || !signupForm.name || !signupForm.companyAddress || !signupForm.companyNumber) {
       setError('All fields are required.');
       return;
     }
     const result = await signup(
-      signupForm.name,
+      signupForm.name,       // admin email (mapped to 'name' arg as before)
+      signupForm.adminName,  // admin name (new)
       signupForm.email,
       signupForm.companyName,
-      '', // Legacy password parameter
       signupForm.companyAddress,
       signupForm.companyNumber
     );
     if (result) {
       setSignupForm({
         name: '',
+        adminName: '',
         email: '',
         companyName: '',
         password: '',
@@ -280,6 +281,7 @@ export default function AuthScreens({
                       onChange={(e) => setLoginEmail(e.target.value)}
                       className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
                       placeholder="name@keystonestudio.com"
+                      autoComplete="nope"
                     />
                   </div>
                 </div>
@@ -308,6 +310,7 @@ export default function AuthScreens({
                       onChange={(e) => setLoginPassword(e.target.value)}
                       className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-10 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
                       placeholder="••••••••"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
@@ -443,22 +446,42 @@ export default function AuthScreens({
                   <p className="text-xs text-secondary font-semibold uppercase mb-4 tracking-wider">
                     Company Admin Credentials (Will receive temporary password)
                   </p>
-                  <div>
-                    <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
-                      Admin Email Address
-                    </label>
-                    <div className="relative">
-                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
-                        admin_panel_settings
-                      </span>
-                      <input
-                        type="email"
-                        required
-                        value={signupForm.name} // Map admin email to this form field for simplicity
-                        onChange={(e) => setSignupForm({ ...signupForm, name: e.target.value })}
-                        className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
-                        placeholder="e.g. admin@acme.com"
-                      />
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                        Admin Full Name
+                      </label>
+                      <div className="relative">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                          person
+                        </span>
+                        <input
+                          type="text"
+                          required
+                          value={signupForm.adminName || ''}
+                          onChange={(e) => setSignupForm({ ...signupForm, adminName: e.target.value })}
+                          className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                          placeholder="e.g. Jane Smith"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                        Admin Email Address
+                      </label>
+                      <div className="relative">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                          admin_panel_settings
+                        </span>
+                        <input
+                          type="email"
+                          required
+                          value={signupForm.name}
+                          onChange={(e) => setSignupForm({ ...signupForm, name: e.target.value })}
+                          className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                          placeholder="e.g. admin@acme.com"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

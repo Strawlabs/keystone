@@ -31,6 +31,10 @@ export default function Modals({
   setShowDrawingModal,
   showUserModal,
   setShowUserModal,
+  showPreviewModal,
+  setShowPreviewModal,
+  previewDrawing,
+  setPreviewDrawing,
   newProj,
   setNewProj,
   handleSaveProject,
@@ -51,11 +55,20 @@ export default function Modals({
   currentUser,
   currentTenantId,
   createProject,
+  getSignedUrl,
 }) {
   // Local state for file uploads
   const [drawingFile, setDrawingFile] = useState(null);
+  const [drawingFileError, setDrawingFileError] = useState('');
   const [uploadingDrawing, setUploadingDrawing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+
+  // Preview modal state
+  const [previewSignedUrl, setPreviewSignedUrl] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const ALLOWED_DRAWING_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'dwg'];
+  const MAX_FILE_SIZE_MB = 50;
 
   const [sitePhotos, setSitePhotos] = useState([]);
   const [sitePhotoPreview, setSitePhotoPreview] = useState([]);
@@ -73,6 +86,47 @@ export default function Modals({
       setIsCreatingNewProj(true);
     }
   }, [showDrawingModal, projects.length]);
+
+  // Load preview signed URL when preview modal opens
+  React.useEffect(() => {
+    let cancelled = false;
+    if (showPreviewModal && previewDrawing?.storage_path && getSignedUrl) {
+      setPreviewLoading(true);
+      setPreviewSignedUrl(null);
+      getSignedUrl(previewDrawing.storage_path).then(url => {
+        if (!cancelled) {
+          setPreviewSignedUrl(url);
+          setPreviewLoading(false);
+        }
+      });
+    } else if (showPreviewModal && previewDrawing?.file_url) {
+      setPreviewSignedUrl(previewDrawing.file_url);
+    }
+    return () => { cancelled = true; };
+  }, [showPreviewModal, previewDrawing, getSignedUrl]);
+
+  const handleDrawingFileChange = (e) => {
+    const file = e.target.files[0];
+    setDrawingFileError('');
+    if (!file) { setDrawingFile(null); return; }
+
+    // Client-side extension check
+    const ext = file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase();
+    if (!ALLOWED_DRAWING_EXTENSIONS.includes(ext)) {
+      setDrawingFileError(`Unsupported file type ".${ext}". Allowed: PDF, JPG, PNG, DWG.`);
+      setDrawingFile(null);
+      e.target.value = '';
+      return;
+    }
+    // Client-side size check
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      setDrawingFileError(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${MAX_FILE_SIZE_MB} MB.`);
+      setDrawingFile(null);
+      e.target.value = '';
+      return;
+    }
+    setDrawingFile(file);
+  };
 
   const isMock = isMockTenant(currentTenantId);
 
@@ -173,6 +227,7 @@ export default function Modals({
       const success = await createDrawing({
         ...finalDrawingValidation.data,
         drawing_number: newDrawingInput.drawing_number,
+        storage_path: uploadData.storagePath || null,
         revision_number: parseInt(newDrawingInput.revision_number) || 1,
         revision_notes: newDrawingInput.revision_notes
       });
@@ -182,6 +237,7 @@ export default function Modals({
         setShowDrawingModal(false);
         setNewDrawingInput({ project_id: '', name: '', drawing_number: '', category: 'architectural', revision_number: '1', revision_notes: '', file_url: '' });
         setDrawingFile(null);
+        setDrawingFileError('');
         setUploadProgress(0);
         // Reset on-the-fly project states
         setNewProjName('');
@@ -763,6 +819,8 @@ export default function Modals({
                       <option value="electrical">Electrical</option>
                       <option value="plumbing">Plumbing</option>
                       <option value="elevation">Elevation</option>
+                      <option value="site_photos">Site Photos</option>
+                      <option value="project_documents">Project Documents</option>
                       <option value="miscellaneous">Miscellaneous</option>
                     </select>
                   </div>
@@ -802,8 +860,8 @@ export default function Modals({
                   <input
                     type="file"
                     required
-                    accept=".pdf,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
-                    onChange={(e) => setDrawingFile(e.target.files[0])}
+                    accept=".pdf,.jpg,.jpeg,.png,.dwg"
+                    onChange={handleDrawingFileChange}
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                   />
                   <span className="material-symbols-outlined text-[32px] text-secondary mb-2 select-none">
@@ -812,15 +870,22 @@ export default function Modals({
                   {drawingFile ? (
                     <div>
                       <p className="text-xs font-bold text-primary">{drawingFile.name}</p>
-                      <p className="text-[10px] text-secondary font-medium mt-0.5">{(drawingFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                      <p className="text-[10px] text-secondary font-medium mt-0.5">{(drawingFile.size / 1024 / 1024).toFixed(2)} MB · {drawingFile.name.slice(drawingFile.name.lastIndexOf('.') + 1).toUpperCase()}</p>
                     </div>
                   ) : (
                     <div>
                       <p className="text-xs text-secondary font-bold">Click or drag blueprint sheet file</p>
-                      <p className="text-[10px] text-secondary font-medium mt-1">PDF · DWG · DXF · JPG · PNG</p>
+                      <p className="text-[10px] text-secondary font-medium mt-1">PDF · DWG · JPG · PNG — max 50 MB</p>
                     </div>
                   )}
                 </div>
+
+                {drawingFileError && (
+                  <div className="flex items-start gap-2 mt-2 p-2 bg-error/10 border border-error/20 rounded-lg">
+                    <span className="material-symbols-outlined text-error text-[16px] shrink-0 mt-0.5">error</span>
+                    <p className="text-[11px] text-error font-semibold">{drawingFileError}</p>
+                  </div>
+                )}
 
                 {uploadingDrawing && (
                   <div className="mt-4">
@@ -935,6 +1000,130 @@ export default function Modals({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. DRAWING PREVIEW MODAL */}
+      {showPreviewModal && previewDrawing && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest border border-border-subtle rounded-2xl w-full max-w-4xl shadow-2xl animate-scale-up text-on-surface flex flex-col max-h-[92vh]">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-border-subtle px-6 py-4 shrink-0">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <h3 className="text-body-lg font-bold text-ink-black">{previewDrawing.name}</h3>
+                  {previewDrawing.drawing_number && (
+                    <span className="px-2 py-0.5 bg-surface-container-low rounded text-[10px] font-bold text-secondary font-mono">#{previewDrawing.drawing_number}</span>
+                  )}
+                  <span className="px-2 py-0.5 bg-primary/10 rounded text-[10px] font-bold text-primary uppercase tracking-wider">
+                    Rev {previewDrawing.current_revision || 1}
+                  </span>
+                </div>
+                <p className="text-[11px] text-secondary font-medium">
+                  {previewDrawing.category?.replace('_', ' ')} · {previewDrawing.project_name || 'Project'}
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowPreviewModal(false); setPreviewSignedUrl(null); }}
+                className="text-secondary hover:text-primary transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Preview Body */}
+            <div className="flex-1 overflow-hidden relative flex flex-col">
+              {previewLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="flex flex-col items-center gap-3">
+                    <span className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <p className="text-label-md text-secondary font-semibold">Generating secure preview...</p>
+                  </div>
+                </div>
+              ) : !previewSignedUrl ? (
+                <div className="flex items-center justify-center h-64 flex-col gap-3">
+                  <span className="material-symbols-outlined text-[48px] text-outline">error_outline</span>
+                  <p className="text-label-md text-secondary">Preview unavailable. Please download the file.</p>
+                </div>
+              ) : (() => {
+                const ext = (previewDrawing.storage_path || previewDrawing.file_url || '').split('.').pop().toLowerCase();
+                const isImage = ['jpg', 'jpeg', 'png'].includes(ext);
+                const isPdf = ext === 'pdf';
+                const isDwg = ext === 'dwg';
+
+                if (isImage) {
+                  return (
+                    <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-surface-container">
+                      <img
+                        src={previewSignedUrl}
+                        alt={previewDrawing.name}
+                        className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                      />
+                    </div>
+                  );
+                }
+
+                if (isPdf) {
+                  return (
+                    <div className="flex-1 overflow-hidden">
+                      <iframe
+                        src={`${previewSignedUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                        className="w-full h-full"
+                        style={{ minHeight: '520px' }}
+                        title={previewDrawing.name}
+                      />
+                    </div>
+                  );
+                }
+
+                if (isDwg) {
+                  return (
+                    <div className="flex items-center justify-center h-64 flex-col gap-4">
+                      <span className="material-symbols-outlined text-[64px] text-blue-400">architecture</span>
+                      <div className="text-center">
+                        <p className="font-bold text-ink-black mb-1">DWG / CAD File</p>
+                        <p className="text-label-md text-secondary">Browser preview not supported for CAD files.</p>
+                        <p className="text-label-sm text-secondary mt-1">Download to open in AutoCAD or compatible software.</p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="flex items-center justify-center h-64">
+                    <p className="text-secondary">File preview not available</p>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border-subtle shrink-0 bg-surface-container-low/30">
+              <p className="text-[11px] text-secondary font-medium">
+                🔒 Secure link · expires in 60 minutes
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { setShowPreviewModal(false); setPreviewSignedUrl(null); }}
+                  className="px-4 py-2 border border-border-subtle rounded-lg text-secondary font-bold text-xs hover:bg-surface-container transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+                {previewSignedUrl && (
+                  <a
+                    href={previewSignedUrl}
+                    download={previewDrawing.name}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-bold text-xs hover:bg-primary-container transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">download</span>
+                    Download File
+                  </a>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

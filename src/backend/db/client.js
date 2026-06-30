@@ -167,9 +167,43 @@ export const db = {
   },
 
   // ---- DRAWINGS & REVISIONS ----
-  async getDrawings(tenantId, projectId = null) {
+  async getDrawings(tenantId, projectId = null, filters = {}) {
+    const { search = '', sort = 'created_at_desc', category = '' } = filters;
+
     let query = supabase.from('drawings').select('*').eq('tenant_id', tenantId);
     if (projectId) query = query.eq('project_id', projectId);
+
+    // Category filter (server-side for performance)
+    if (category && category !== 'all') {
+      query = query.eq('category', category);
+    }
+
+    // Full-text search on name and drawing_number
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      query = query.or(`name.ilike.${searchTerm},drawing_number.ilike.${searchTerm}`);
+    }
+
+    // Sorting
+    switch (sort) {
+      case 'name_asc':
+        query = query.order('name', { ascending: true });
+        break;
+      case 'name_desc':
+        query = query.order('name', { ascending: false });
+        break;
+      case 'revision_desc':
+        query = query.order('current_revision', { ascending: false });
+        break;
+      case 'created_at_asc':
+        query = query.order('created_at', { ascending: true });
+        break;
+      case 'created_at_desc':
+      default:
+        query = query.order('created_at', { ascending: false });
+        break;
+    }
+
     const { data, error } = await query;
     if (error) throw error;
     return data;
@@ -191,6 +225,7 @@ export const db = {
       revision_number: 1,
       revision_notes: initialRevisionNotes,
       file_url: data.file_url,
+      storage_path: data.storage_path || null,
       uploaded_by: data.uploaded_by
     }]);
     if (verError) throw verError;
@@ -216,22 +251,33 @@ export const db = {
         revision_number: nextRev,
         revision_notes: revisionData.notes,
         file_url: revisionData.file_url,
+        storage_path: revisionData.storage_path || null,
         uploaded_by: revisionData.uploaded_by
       }])
       .select()
       .single();
     if (verError) throw verError;
 
-    // Update drawing's current revision pointer
+    // Update drawing's current revision pointer and file_url
     const { data: updatedDrawing, error: updError } = await supabase
       .from('drawings')
-      .update({ current_revision: nextRev, file_url: revisionData.file_url })
+      .update({
+        current_revision: nextRev,
+        file_url: revisionData.file_url,
+        storage_path: revisionData.storage_path || null
+      })
       .eq('id', drawingId)
       .select()
       .single();
     if (updError) throw updError;
 
     return { drawing: updatedDrawing, version };
+  },
+
+  async deleteDrawing(id) {
+    const { error } = await supabase.from('drawings').delete().eq('id', id);
+    if (error) throw error;
+    return true;
   },
 
   async getDrawingVersions(drawingId) {
