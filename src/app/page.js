@@ -36,7 +36,8 @@ export default function Home() {
     login, signup, verify, logout, resetPassword, createProject, updateProject, deleteProject,
     createDrawing, createDrawingRevision, submitApproval, approveDrawing, rejectDrawing,
     createTask, updateTask, completeTask, createSiteLog, markNotificationRead, fetchData,
-    setError, setSuccess, inviteUser
+    setError, setSuccess, inviteUser, deleteDrawing, getSignedUrl,
+    drawingSort, setDrawingSort
   } = store;
 
   // Local UI States
@@ -60,6 +61,8 @@ export default function Home() {
   const [showDrawingModal, setShowDrawingModal] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewDrawing, setPreviewDrawing] = useState(null);
 
   // Global Search
   const [globalSearch, setGlobalSearch] = useState('');
@@ -352,8 +355,11 @@ export default function Home() {
   const assignedProjects = filteredProjects;
 
   const filteredDrawings = drawings.filter(d => {
-    const matchesSearch = d.name?.toLowerCase().includes(drawingSearch.toLowerCase()) ||
-                          (d.project_name && d.project_name.toLowerCase().includes(drawingSearch.toLowerCase()));
+    const searchLower = drawingSearch.toLowerCase();
+    const matchesSearch = d.name?.toLowerCase().includes(searchLower) ||
+                          (d.project_name && d.project_name.toLowerCase().includes(searchLower)) ||
+                          (d.drawing_number && d.drawing_number.toLowerCase().includes(searchLower)) ||
+                          String(d.current_revision || 1).includes(searchLower);
     const matchesCat = drawingCategoryFilter === 'all' || d.category === drawingCategoryFilter;
     return matchesSearch && matchesCat;
   });
@@ -413,6 +419,8 @@ export default function Home() {
             setDrawingCategoryFilter={setDrawingCategoryFilter}
             drawingSearch={drawingSearch}
             setDrawingSearch={setDrawingSearch}
+            drawingSort={drawingSort}
+            setDrawingSort={setDrawingSort}
             filteredDrawings={filteredDrawings}
             isClient={isClient}
             isStaff={isStaff}
@@ -422,6 +430,11 @@ export default function Home() {
             setTab={setTab}
             submitApproval={submitApproval}
             users={users}
+            approvals={approvals}
+            getSignedUrl={getSignedUrl}
+            deleteDrawing={deleteDrawing}
+            setShowPreviewModal={setShowPreviewModal}
+            setPreviewDrawing={setPreviewDrawing}
           />
         );
       case 'approvals':
@@ -566,6 +579,10 @@ export default function Home() {
         setShowDrawingModal={setShowDrawingModal}
         showUserModal={showUserModal}
         setShowUserModal={setShowUserModal}
+        showPreviewModal={showPreviewModal}
+        setShowPreviewModal={setShowPreviewModal}
+        previewDrawing={previewDrawing}
+        setPreviewDrawing={setPreviewDrawing}
         newProj={newProj}
         setNewProj={setNewProj}
         handleSaveProject={handleSaveProject}
@@ -586,6 +603,7 @@ export default function Home() {
         currentUser={currentUser}
         currentTenantId={store.currentTenantId}
         createProject={createProject}
+        getSignedUrl={getSignedUrl}
       />
     </div>
   );

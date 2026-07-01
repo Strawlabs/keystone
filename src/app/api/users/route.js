@@ -3,6 +3,7 @@ import { db, supabase } from '@/backend/db/client';
 import { getAuthContext, generateRandomPassword, hashPassword } from '@/backend/utils/auth';
 import { logActivity } from '@/backend/services/logger';
 import { inviteUserSchema } from '@/backend/utils/validation';
+import { emailService } from '@/backend/services/gmail';
 
 // GET /api/users - List users for the authenticated tenant
 export async function GET(request) {
@@ -125,56 +126,15 @@ export async function POST(request) {
 }
 
 async function sendInviteEmail(email, name, role, demoPassword, loginLink) {
-  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
-  const { Resend } = await import('resend');
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const senderEmail = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
-
-  if (!resendApiKey || resendApiKey.includes('YOUR_')) {
-    console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
-    console.log(`║ ✉️  [Email Mock] User invitation sent to: ${email}`);
-    console.log(`║    Role: ${roleLabel}`);
-    console.log(`║    Demo Password: ${demoPassword}`);
-    console.log(`║    Login Link: ${loginLink}`);
-    console.log(`╚══════════════════════════════════════════════════════════════╝\n`);
-    return;
-  }
-
-  try {
-    const resend = new Resend(resendApiKey);
-    const { data, error } = await resend.emails.send({
-      from: `Keystone Studio <${senderEmail}>`,
-      to: [process.env.NODE_ENV !== 'production' ? 'balayoghi51@gmail.com' : email],
-      subject: `You've been invited to join Keystone`,
-      html: `
-        <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #0f172a; color: #e2e8f0; border-radius: 16px;">
-          <h2 style="font-size: 18px; font-weight: 600; color: #ffffff; margin-bottom: 12px;">Welcome to Keystone</h2>
-          <p style="font-size: 14px; line-height: 1.6; color: #94a3b8; margin-bottom: 16px;">
-            You have been invited to join your team's workspace as a <strong>${roleLabel}</strong>.
-            Here are your temporary login credentials:
-          </p>
-          <div style="background: #1e293b; border: 1px solid #334155; padding: 16px; border-radius: 12px; margin-bottom: 24px; font-family: monospace; font-size: 14px; color: #f1f5f9;">
-            <div style="margin-bottom: 8px;"><strong>Email:</strong> ${email}</div>
-            <div><strong>Demo Password:</strong> <span style="color: #38bdf8;">${demoPassword}</span></div>
-          </div>
-          <p style="font-size: 14px; line-height: 1.6; color: #e2e8f0; font-weight: 600; margin-bottom: 24px;">
-            ⚠️ You will be prompted to set a new permanent password on your first login.
-          </p>
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${loginLink}" style="display: inline-block; padding: 14px 32px; background: #2563eb; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; border-radius: 12px;">
-              Log In &amp; Change Password
-            </a>
-          </div>
-        </div>
-      `
-    });
-
-    if (error) {
-      console.error('[User Invite Email] Resend API Error:', error);
-    } else {
-      console.log(`[User Invite] Invite email sent to ${email} (ID: ${data?.id})`);
-    }
-  } catch (err) {
-    console.error('Failed to send invite email:', err.message);
+  const result = await emailService.sendInviteEmail({
+    email,
+    name,
+    role,
+    invitedByName: 'Your Admin',
+    demoPassword,
+    loginLink,
+  });
+  if (result?.success && !result?.mock) {
+    console.log(`[User Invite] Invite email sent to ${email}`);
   }
 }

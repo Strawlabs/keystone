@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAuth } from '@/backend/db/client';
-import { emailService } from '@/backend/services/resend.js';
+import { emailService } from '@/backend/services/gmail.js';
 
 export async function POST(request) {
   try {
@@ -36,7 +36,7 @@ export async function POST(request) {
     try {
       await emailService.sendPasswordResetEmail(normalizedEmail, resetUrl);
     } catch (emailErr) {
-      console.warn('Resend email failed (Supabase built-in email still sent):', emailErr.message);
+      console.warn('Gmail email failed (Supabase built-in email still sent):', emailErr.message);
     }
 
     // Security: Always return success to prevent email enumeration
