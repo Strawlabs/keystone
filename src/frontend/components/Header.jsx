@@ -12,6 +12,7 @@ export default function Header({
   setGlobalSearch,
   setTab,
   onMenuClick,
+  currentTenant,
 }) {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
@@ -26,7 +27,7 @@ export default function Header({
         >
           <span className="material-symbols-outlined text-[24px]">menu</span>
         </button>
-        <span className="font-headline-md text-headline-md font-black text-ink-black uppercase tracking-tight hidden sm:block">Keystone</span>
+        <span className="font-headline-md text-headline-md font-black text-ink-black uppercase tracking-tight hidden sm:block truncate max-w-[180px]">{currentTenant?.name || 'Keystone'}</span>
 
         {/* Global Search */}
         <div className="relative rounded-full max-w-md w-full bg-surface-container-low">

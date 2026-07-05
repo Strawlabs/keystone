@@ -73,6 +73,12 @@ export const db = {
     return data;
   },
 
+  async updateTenant(id, updates) {
+    const { data, error } = await supabase.from('tenants').update(updates).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  },
+
   // ---- USERS ----
   async getUsers(tenantId) {
     const { data, error } = await supabase.from('users').select('*').eq('tenant_id', tenantId);
@@ -164,6 +170,29 @@ export const db = {
     const { error } = await supabase.from('projects').delete().eq('id', id);
     if (error) throw error;
     return true;
+  },
+
+  // Returns all project_members rows whose project belongs to the given tenant.
+  // project_members has no tenant_id column — Supabase JS v2 .in() requires a plain array,
+  // so we first fetch the project IDs for this tenant, then use them as a filter.
+  async getProjectMembers(tenantId) {
+    // Step 1: get project IDs for this tenant
+    const { data: projectRows, error: projError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('tenant_id', tenantId);
+    if (projError) throw projError;
+
+    const projectIds = (projectRows || []).map(p => p.id);
+    if (projectIds.length === 0) return [];
+
+    // Step 2: fetch members for those project IDs
+    const { data, error } = await supabase
+      .from('project_members')
+      .select('project_id, user_id, role')
+      .in('project_id', projectIds);
+    if (error) throw error;
+    return data || [];
   },
 
   // ---- DRAWINGS & REVISIONS ----

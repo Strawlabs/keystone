@@ -14,12 +14,12 @@ const apiFetch = async (url, options = {}) => {
     ...options,
     headers
   });
-  if (res.status === 401 && typeof window !== 'undefined') {
+  if ((res.status === 401 || res.status === 403) && typeof window !== 'undefined') {
     if (!url.includes('/api/auth/login') && !url.includes('/api/company/register')) {
       const store = useStore.getState();
       if (store.isAuthenticated) {
         store.logout();
-        store.setError('Session expired or unauthorized. Please log in again.');
+        store.setError(res.status === 403 ? 'Your account has been deactivated or disabled.' : 'Session expired or unauthorized. Please log in again.');
       }
     }
   }
@@ -41,6 +41,9 @@ export const useStore = create((set, get) => ({
   activityLogs: [],
   users: [],
   tenants: [],
+  dashboardStats: null, // Aggregated dashboard KPIs and recent data per role
+  dashboardStatsLoading: false, // True while /api/dashboard/stats is in-flight
+  currentTenant: null, // Full profile of current firm/tenant
   currentTenantId: 't1',
   activeTab: 'login', // Default start page is login
   selectedProjectId: null,
@@ -84,37 +87,30 @@ export const useStore = create((set, get) => ({
         'x-user-id': currentUser.id
       };
 
-      // 1. Projects
-      const resProj = await apiFetch(`/api/projects?tenantId=${currentTenantId}`, { headers });
-      const dataProj = await resProj.json();
+      // Fetch all raw data in parallel for high-performance load balancing
+      const [resProj, resDraw, resAppr, resTasks, resLogs, resNotif, resAct, resUsers, resTenant] = await Promise.all([
+        apiFetch(`/api/projects?tenantId=${currentTenantId}`, { headers }),
+        apiFetch(`/api/drawings?tenantId=${currentTenantId}`, { headers }),
+        apiFetch(`/api/approvals?tenantId=${currentTenantId}`, { headers }),
+        apiFetch(`/api/tasks?tenantId=${currentTenantId}`, { headers }),
+        apiFetch(`/api/site-logs?tenantId=${currentTenantId}`, { headers }),
+        apiFetch(`/api/notifications?tenantId=${currentTenantId}&userId=${currentUser.id}`, { headers }),
+        apiFetch(`/api/activity-logs?tenantId=${currentTenantId}`, { headers }),
+        apiFetch(`/api/users?tenantId=${currentTenantId}`, { headers }),
+        apiFetch('/api/company', { headers })
+      ]);
 
-      // 2. Drawings
-      const resDraw = await apiFetch(`/api/drawings?tenantId=${currentTenantId}`, { headers });
-      const dataDraw = await resDraw.json();
-
-      // 3. Approvals
-      const resAppr = await apiFetch(`/api/approvals?tenantId=${currentTenantId}`, { headers });
-      const dataAppr = await resAppr.json();
-
-      // 4. Tasks
-      const resTasks = await apiFetch(`/api/tasks?tenantId=${currentTenantId}`, { headers });
-      const dataTasks = await resTasks.json();
-
-      // 5. Site Logs
-      const resLogs = await apiFetch(`/api/site-logs?tenantId=${currentTenantId}`, { headers });
-      const dataLogs = await resLogs.json();
-
-      // 6. Notifications
-      const resNotif = await apiFetch(`/api/notifications?tenantId=${currentTenantId}&userId=${currentUser.id}`, { headers });
-      const dataNotif = await resNotif.json();
-
-      // 7. Activity Logs
-      const resAct = await apiFetch(`/api/activity-logs?tenantId=${currentTenantId}`, { headers });
-      const dataAct = await resAct.json();
-
-      // 8. Users
-      const resUsers = await apiFetch(`/api/users?tenantId=${currentTenantId}`, { headers });
-      const dataUsers = await resUsers.json();
+      const [dataProj, dataDraw, dataAppr, dataTasks, dataLogs, dataNotif, dataAct, dataUsers, dataTenant] = await Promise.all([
+        resProj.json(),
+        resDraw.json(),
+        resAppr.json(),
+        resTasks.json(),
+        resLogs.json(),
+        resNotif.json(),
+        resAct.json(),
+        resUsers.json(),
+        resTenant.ok ? resTenant.json() : Promise.resolve(null)
+      ]);
 
       set({
         projects: dataProj.projects || [],
@@ -125,11 +121,43 @@ export const useStore = create((set, get) => ({
         notifications: dataNotif.notifications || [],
         activityLogs: dataAct.activityLogs || [],
         users: dataUsers.users || [],
+        currentTenant: dataTenant?.tenant || null,
         loading: false
       });
+
+      // Fetch aggregated dashboard stats (non-blocking)
+      get().fetchDashboardStats();
     } catch (e) {
       console.error(e);
       set({ error: 'Failed to load workspace data.', loading: false });
+    }
+  },
+
+  // Fetch aggregated dashboard KPIs and recent data from the dedicated stats endpoint
+  fetchDashboardStats: async () => {
+    const { currentTenantId, currentUser } = get();
+    if (!currentUser) return;
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(currentTenantId)) return; // Skip in dev mock mode
+
+    set({ dashboardStatsLoading: true });
+    try {
+      const res = await apiFetch(`/api/dashboard/stats?tenantId=${currentTenantId}`, {
+        headers: {
+          'x-tenant-id': currentTenantId,
+          'x-user-id': currentUser.id
+        }
+      });
+      if (!res.ok) {
+        set({ dashboardStatsLoading: false });
+        return;
+      }
+      const data = await res.json();
+      set({ dashboardStats: data, dashboardStatsLoading: false });
+    } catch (e) {
+      console.error('[Dashboard Stats] Failed to fetch:', e);
+      set({ dashboardStatsLoading: false });
     }
   },
 
@@ -203,16 +231,25 @@ export const useStore = create((set, get) => ({
       // Store JWT token locally
       localStorage.setItem('keystone_token', data.token);
 
+      // Pre-set token & tenant context so that parallel apiFetch calls inside fetchData work
       set({
         token: data.token,
         currentUser: data.user,
+        currentTenantId: data.user.tenant_id
+      });
+
+      // Fetch all workspace and dashboard stats in parallel
+      await Promise.all([
+        get().fetchData(),
+        get().fetchDashboardStats()
+      ]);
+
+      set({
         isAuthenticated: true,
-        currentTenantId: data.user.tenant_id,
         activeTab: 'dashboard',
         loading: false
       });
       get().setSuccess(`Logged in as ${data.user.name}`);
-      await get().fetchData();
       return true;
     } catch (e) {
       set({ error: 'Server connection failed.', loading: false });
@@ -801,13 +838,12 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  // Admin: Update a user's role or status
+  // Admin: Update a user's role, name, or status
   updateUserById: async (userId, updates) => {
-    const { currentTenantId, currentUser } = get();
     try {
-      const res = await apiFetch('/api/admin/invite', {
+      const res = await apiFetch(`/api/users/${userId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ userId, tenantId: currentTenantId, adminId: currentUser.id, updates })
+        body: JSON.stringify(updates)
       });
       const data = await res.json();
       if (!res.ok) {
@@ -815,10 +851,58 @@ export const useStore = create((set, get) => ({
         return false;
       }
       get().setSuccess('User updated successfully');
-      await get().fetchData();
+      // Optimistic local update so the list refreshes without a full re-fetch
+      set(state => ({ users: state.users.map(u => u.id === userId ? { ...u, ...updates } : u) }));
       return true;
     } catch (e) {
       get().setError('Network error updating user.');
+      return false;
+    }
+  },
+
+  // Admin: Soft-disable a user (blocks login, sets status=disabled)
+  disableUser: async (userId) => {
+    try {
+      const res = await apiFetch(`/api/users/${userId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        get().setError(data.error || 'Failed to disable user');
+        return false;
+      }
+      get().setSuccess('User disabled successfully');
+      set(state => ({ users: state.users.map(u => u.id === userId ? { ...u, status: 'disabled' } : u) }));
+      return true;
+    } catch (e) {
+      get().setError('Network error disabling user.');
+      return false;
+    }
+  },
+
+  // Admin: Persist company settings (name, logo, address, contact email)
+  updateCompanySettings: async (settings) => {
+    try {
+      const res = await apiFetch('/api/company', {
+        method: 'PATCH',
+        body: JSON.stringify(settings)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        get().setError(data.error || 'Failed to save settings');
+        return false;
+      }
+      // Update local tenant details in state
+      if (data.tenant) {
+        set({ currentTenant: data.tenant });
+      }
+      if (settings.name) {
+        set(state => ({
+          currentUser: state.currentUser ? { ...state.currentUser, company_name: settings.name } : state.currentUser
+        }));
+      }
+      get().setSuccess('Company settings saved successfully');
+      return true;
+    } catch (e) {
+      get().setError('Network error saving settings.');
       return false;
     }
   },

@@ -25,8 +25,17 @@ export default function Sidebar({
   notifications,
   isOpen,
   onClose,
+  currentTenant,
 }) {
   const unreadCount = (notifications || []).filter(n => !n.is_read).length;
+
+  const getSubText = () => {
+    if (currentUser?.role === 'admin') return 'Studio Admin';
+    if (currentUser?.role === 'architect') return 'Lead Architect';
+    if (currentUser?.role === 'staff') return 'Team Member';
+    if (currentUser?.role === 'client') return 'Client Portal';
+    return 'Member';
+  };
 
   return (
     <aside className={`w-64 h-screen fixed left-0 top-0 bg-surface border-r border-border-subtle flex flex-col justify-between py-6 px-4 z-50 shrink-0 select-none transition-transform duration-300 ease-in-out lg:translate-x-0 ${
@@ -35,13 +44,24 @@ export default function Sidebar({
       <div>
         {/* Logo */}
         <div className="mb-8 px-2 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white">
+          <div className="flex items-center gap-3 min-w-0">
+            {currentTenant?.logo_url ? (
+              <img
+                src={currentTenant.logo_url}
+                alt={currentTenant.name}
+                className="w-10 h-10 rounded-lg object-contain border border-border-subtle shrink-0"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+            ) : null}
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white shrink-0" style={{ display: currentTenant?.logo_url ? 'none' : 'flex' }}>
               <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>architecture</span>
             </div>
-            <div>
-              <h1 className="text-headline-md font-bold text-on-surface leading-tight">Keystone Studio</h1>
-              <p className="text-label-md text-secondary">Studio Admin</p>
+            <div className="min-w-0">
+              <h1 className="text-body-lg font-extrabold text-on-surface leading-tight truncate">{currentTenant?.name || 'Keystone Studio'}</h1>
+              <p className="text-[10px] uppercase tracking-wider font-bold text-secondary">{getSubText()}</p>
             </div>
           </div>
           <button
