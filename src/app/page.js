@@ -16,7 +16,7 @@ import AuthScreens from '@/frontend/components/AuthScreens';
 import Sidebar from '@/frontend/components/Sidebar';
 import Header from '@/frontend/components/Header';
 import Modals from '@/frontend/components/Modals';
-import DashboardView from '@/frontend/components/DashboardView';
+import DashboardView, { DashboardSkeleton } from '@/frontend/components/DashboardView';
 import ProjectsView from '@/frontend/components/ProjectsView';
 import DrawingsView from '@/frontend/components/DrawingsView';
 import ApprovalCenterView from '@/frontend/components/ApprovalCenterView';
@@ -37,7 +37,7 @@ export default function Home() {
     createDrawing, createDrawingRevision, submitApproval, approveDrawing, rejectDrawing,
     createTask, updateTask, completeTask, createSiteLog, markNotificationRead, fetchData,
     setError, setSuccess, inviteUser, deleteDrawing, getSignedUrl,
-    drawingSort, setDrawingSort
+    drawingSort, setDrawingSort, dashboardStatsLoading
   } = store;
 
   // Local UI States
@@ -380,6 +380,10 @@ export default function Home() {
     const tab = activeTab;
     switch (tab) {
       case 'dashboard':
+        // Show skeleton while the dedicated dashboard stats are being fetched
+        if (dashboardStatsLoading && !store.dashboardStats) {
+          return <DashboardSkeleton role={currentUser?.role} />;
+        }
         return (
           <DashboardView
             currentUser={currentUser}
@@ -389,9 +393,15 @@ export default function Home() {
             siteLogs={siteLogs}
             drawings={drawings}
             users={users}
+            notifications={notifications}
+            activityLogs={activityLogs}
+            dashboardStats={store.dashboardStats}
             setTab={setTab}
             setShowProjectModal={setShowProjectModal}
             setShowUserModal={setShowUserModal}
+            setShowDrawingModal={setShowDrawingModal}
+            approveDrawing={approveDrawing}
+            rejectDrawing={rejectDrawing}
           />
         );
       case 'projects':
@@ -534,6 +544,7 @@ export default function Home() {
         notifications={notifications}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        currentTenant={store.currentTenant}
       />
 
       {/* Backdrop overlay for mobile drawer */}
@@ -545,7 +556,7 @@ export default function Home() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-background lg:ml-64 ml-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-background lg:ml-64 ml-0 relative">
         
         {/* Global Top Navbar */}
         <Header
@@ -559,10 +570,14 @@ export default function Home() {
           setGlobalSearch={setGlobalSearch}
           setTab={setTab}
           onMenuClick={() => setIsSidebarOpen(true)}
+          currentTenant={store.currentTenant}
         />
 
         {/* Global Page Content Container */}
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-8 relative overflow-hidden">
+          {/* Subtle Decorative Background Glows for Premium UI/UX */}
+          <div className="absolute top-[-100px] right-[-100px] -z-10 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute bottom-[-100px] left-[-100px] -z-10 w-[500px] h-[500px] bg-tertiary/5 rounded-full blur-[100px] pointer-events-none" />
           {renderTabContent()}
         </main>
       </div>

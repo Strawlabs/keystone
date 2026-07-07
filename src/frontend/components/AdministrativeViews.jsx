@@ -1,7 +1,29 @@
 import React, { useState } from 'react';
+import { useStore } from '@/frontend/store/store';
 
 // 1. Users management panel
 export function UsersView({ users = [], setShowUserModal }) {
+  const { updateUserById, disableUser } = useStore();
+  const [editingUser, setEditingUser] = useState(null); // { id, name, role }
+  const [confirmDisableUser, setConfirmDisableUser] = useState(null); // user to disable
+  const [editForm, setEditForm] = useState({ name: '', role: '' });
+  const [saving, setSaving] = useState(false);
+
+  const ROLES = ['admin', 'architect', 'staff', 'client'];
+
+  const openEdit = (u) => {
+    setEditingUser(u);
+    setEditForm({ name: u.name, role: u.role });
+  };
+
+  const handleEditSave = async () => {
+    if (!editingUser) return;
+    setSaving(true);
+    await updateUserById(editingUser.id, editForm);
+    setSaving(false);
+    setEditingUser(null);
+  };
+
   const roleStyle = {
     admin: 'text-primary bg-primary/5 border-primary/20',
     architect: 'text-tertiary bg-tertiary/5 border-tertiary/20',
@@ -11,6 +33,85 @@ export function UsersView({ users = [], setShowUserModal }) {
 
   return (
     <div className="space-y-8 animate-fade-in text-on-surface">
+      {/* Edit Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-surface-container-lowest border border-border-subtle rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+            <h3 className="font-bold text-ink-black text-body-lg">Edit User</h3>
+            <div>
+              <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Name</label>
+              <input
+                type="text"
+                value={editForm.name}
+                onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Role</label>
+              <select
+                value={editForm.role}
+                onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
+                className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs cursor-pointer"
+              >
+                {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={handleEditSave}
+                disabled={saving}
+                className="flex-1 py-2 bg-primary text-white font-bold text-xs rounded-lg hover:opacity-90 transition-all disabled:opacity-60 cursor-pointer animate-press"
+              >
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+              <button
+                onClick={() => setEditingUser(null)}
+                className="flex-1 py-2 border border-border-subtle text-secondary font-bold text-xs rounded-lg hover:bg-surface-container-low transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disable Confirmation Modal */}
+      {confirmDisableUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-surface-container-lowest border border-border-subtle rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+            <div className="flex items-center gap-2.5 text-error">
+              <span className="material-symbols-outlined text-[24px]">warning</span>
+              <h3 className="font-bold text-ink-black text-body-lg">Disable Account?</h3>
+            </div>
+            <p className="text-xs text-secondary leading-relaxed">
+              Are you sure you want to disable <strong>{confirmDisableUser.name}</strong> ({confirmDisableUser.email})?
+              They will lose access to this workspace immediately.
+            </p>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={async () => {
+                  setSaving(true);
+                  await disableUser(confirmDisableUser.id);
+                  setSaving(false);
+                  setConfirmDisableUser(null);
+                }}
+                disabled={saving}
+                className="flex-1 py-2 bg-error text-white font-bold text-xs rounded-lg hover:opacity-90 transition-all disabled:opacity-60 cursor-pointer"
+              >
+                {saving ? 'Disabling…' : 'Disable User'}
+              </button>
+              <button
+                onClick={() => setConfirmDisableUser(null)}
+                className="flex-1 py-2 border border-border-subtle text-secondary font-bold text-xs rounded-lg hover:bg-surface-container-low transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <nav className="flex items-center gap-2 text-label-md text-secondary mb-2">
@@ -48,7 +149,7 @@ export function UsersView({ users = [], setShowUserModal }) {
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {users.map(u => (
-                <tr key={u.id} className="hover:bg-primary/5 transition-colors cursor-pointer group">
+                <tr key={u.id} className="hover:bg-primary/5 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       {u.avatar_url ? (
@@ -71,19 +172,34 @@ export function UsersView({ users = [], setShowUserModal }) {
                   </td>
                   <td className="px-6 py-4 text-secondary font-semibold text-body-md">{u.email}</td>
                   <td className="px-6 py-4 text-center">
-                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold capitalize ${u.status === 'active' ? 'text-success' : 'text-secondary'}`}>
-                      <span className={`w-2 h-2 rounded-full ${u.status === 'active' ? 'bg-success' : 'bg-outline'}`} />
+                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold capitalize ${u.status === 'active' ? 'text-success' : 'text-error'}`}>
+                      <span className={`w-2 h-2 rounded-full ${u.status === 'active' ? 'bg-success' : 'bg-error'}`} />
                       {u.status || 'active'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button className="py-1 px-3 bg-surface hover:bg-surface-container border border-border-subtle rounded text-secondary font-bold text-[10px] transition-colors cursor-pointer">
+                      <button
+                        onClick={() => openEdit(u)}
+                        className="py-1 px-3 bg-surface hover:bg-surface-container border border-border-subtle rounded text-secondary font-bold text-[10px] transition-colors cursor-pointer"
+                      >
                         Edit
                       </button>
-                      <button className="py-1 px-3 bg-error/10 hover:bg-error border border-error/20 text-error hover:text-white rounded font-bold text-[10px] transition-colors cursor-pointer">
-                        Disable
-                      </button>
+                      {u.status !== 'disabled' ? (
+                        <button
+                          onClick={() => setConfirmDisableUser(u)}
+                          className="py-1 px-3 bg-error/10 hover:bg-error border border-error/20 text-error hover:text-white rounded font-bold text-[10px] transition-colors cursor-pointer"
+                        >
+                          Disable
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => updateUserById(u.id, { status: 'active' })}
+                          className="py-1 px-3 bg-success/10 hover:bg-success border border-success/20 text-success hover:text-white rounded font-bold text-[10px] transition-colors cursor-pointer"
+                        >
+                          Enable
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -227,10 +343,28 @@ export function ActivityView({ activityLogs = [], users = [] }) {
     </div>
   );
 }
-
-// 3. Settings preferences page
+// 3. Settings preferences page
 export function SettingsView({ store }) {
-  const [saved, setSaved] = useState(false);
+  const { updateCompanySettings, currentTenant } = store;
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    logo_url: '',
+    contact_email: '',
+    address: '',
+  });
+
+  // Sync form inputs once currentTenant is loaded asynchronously
+  React.useEffect(() => {
+    if (currentTenant) {
+      setForm({
+        name: currentTenant.name || '',
+        logo_url: currentTenant.logo_url || '',
+        contact_email: currentTenant.company_email || '',
+        address: currentTenant.company_address || '',
+      });
+    }
+  }, [currentTenant]);
   const [notifSettings, setNotifSettings] = useState({
     approvalRequests: true,
     taskAssigned: true,
@@ -238,11 +372,20 @@ export function SettingsView({ store }) {
     siteLogAdded: false,
   });
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    store.setSuccess?.('Settings saved successfully');
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setSaving(true);
+    const payload = {};
+    if (form.name.trim()) payload.name = form.name.trim();
+    if (form.logo_url.trim()) payload.logo_url = form.logo_url.trim();
+    if (form.contact_email.trim()) payload.contact_email = form.contact_email.trim();
+    if (form.address.trim()) payload.address = form.address.trim();
+    if (Object.keys(payload).length > 0) {
+      await updateCompanySettings(payload);
+    } else {
+      store.setSuccess?.('No changes to save.');
+    }
+    setSaving(false);
   };
 
   return (
@@ -273,7 +416,9 @@ export function SettingsView({ store }) {
               <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Company Name</label>
               <input
                 type="text"
-                defaultValue="Keystone Studio Partners"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Your company name"
                 className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
               />
             </div>
@@ -281,7 +426,9 @@ export function SettingsView({ store }) {
               <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Contact Email</label>
               <input
                 type="email"
-                defaultValue="admin@keystone.com"
+                value={form.contact_email}
+                onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))}
+                placeholder="admin@yourcompany.com"
                 className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
               />
             </div>
@@ -291,25 +438,33 @@ export function SettingsView({ store }) {
             <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Company Logo URL</label>
             <input
               type="url"
+              value={form.logo_url}
+              onChange={e => setForm(f => ({ ...f, logo_url: e.target.value }))}
               placeholder="https://your-logo-url.com/logo.png"
               className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
             />
+            {form.logo_url && (
+              <img src={form.logo_url} alt="Logo preview" className="mt-2 h-10 rounded border border-border-subtle object-contain" onError={e => e.target.style.display='none'} />
+            )}
           </div>
 
           <div>
             <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Office Address</label>
             <textarea
               rows={2}
-              defaultValue="Level 14, Zenith Tower, Outer Ring Road, Bangalore, KA - 560103"
+              value={form.address}
+              onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+              placeholder="Your office address"
               className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
             />
           </div>
 
           <button
             type="submit"
-            className="py-2.5 px-5 bg-primary hover:bg-primary-container rounded-lg text-xs font-bold text-white transition-colors cursor-pointer shadow-sm active:scale-95"
+            disabled={saving}
+            className="py-2.5 px-5 bg-primary hover:bg-primary-container rounded-lg text-xs font-bold text-white transition-colors cursor-pointer shadow-sm active:scale-95 disabled:opacity-60"
           >
-            {saved ? '✓ Settings Saved!' : 'Save Company Details'}
+            {saving ? 'Saving…' : 'Save Company Details'}
           </button>
         </form>
       </div>
@@ -346,7 +501,7 @@ export function SettingsView({ store }) {
       <div className="bg-surface-container-lowest border border-border-subtle p-6 rounded-2xl shadow-sm space-y-5">
         <h3 className="text-body-lg font-bold text-ink-black border-b border-border-subtle pb-3 flex items-center gap-2">
           <span className="material-symbols-outlined text-primary text-[22px]">notifications</span>
-          Email & Alert Notifications
+          Email &amp; Alert Notifications
         </h3>
         <div className="space-y-4">
           {[
@@ -380,6 +535,8 @@ export function SettingsView({ store }) {
     </div>
   );
 }
+
+
 
 // 4. Platform overview dashboard (Straw Labs Admin view)
 export function SaaSAdminView() {

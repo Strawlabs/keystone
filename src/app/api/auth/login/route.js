@@ -40,9 +40,9 @@ export async function POST(request) {
       );
     }
 
-    if (user.status === 'inactive') {
+    if (user.status !== 'active') {
       return NextResponse.json(
-        { error: 'Your user account has been deactivated. Please contact your administrator.' },
+        { error: 'Your user account has been deactivated or disabled. Please contact your administrator.' },
         { status: 403 }
       );
     }
