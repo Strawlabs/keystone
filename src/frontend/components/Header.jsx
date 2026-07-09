@@ -105,10 +105,10 @@ export default function Header({
         </div>
 
         <button className="p-2 text-secondary hover:text-primary transition-colors">
-          <span class="material-symbols-outlined text-[24px]">help_outline</span>
+          <span className="material-symbols-outlined text-[24px]">help_outline</span>
         </button>
 
-        <div className="h-6 w-px bg-border-subtle" />
+        <div className="h-8 w-px bg-border-subtle" />
 
         {/* User Avatar */}
         <div className="flex items-center gap-3">

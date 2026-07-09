@@ -12,7 +12,10 @@ export async function GET(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId } = auth;
+    const { tenantId, role } = auth;
+    if (role === 'client') {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 403 });
+    }
 
     // Enforce tenant isolation
     const users = await db.getUsers(tenantId);

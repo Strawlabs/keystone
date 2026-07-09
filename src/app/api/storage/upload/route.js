@@ -29,6 +29,10 @@ export async function POST(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
+    const { role } = auth;
+    if (role === 'client') {
+      return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
+    }
 
     const formData = await request.formData();
     const file = formData.get('file');

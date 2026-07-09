@@ -56,6 +56,7 @@ export default function Modals({
   currentTenantId,
   createProject,
   getSignedUrl,
+  onProjectFormErrors,  // callback(fieldErrors) — populates inline validation errors
 }) {
   // Local state for file uploads
   const [drawingFile, setDrawingFile] = useState(null);
@@ -73,6 +74,41 @@ export default function Modals({
   const [sitePhotos, setSitePhotos] = useState([]);
   const [sitePhotoPreview, setSitePhotoPreview] = useState([]);
   const [uploadingLogs, setUploadingLogs] = useState(false);
+
+  // Per-field inline validation errors for the Create Project form
+  const [projectFormErrors, setProjectFormErrors] = useState({});
+  const clearProjectFieldError = (field) => {
+    setProjectFormErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
+  // Client-side Zod pre-validation wrapper for the Create Project form.
+  // Populates inline field errors before delegating to parent handleSaveProject.
+  const handleProjectFormSubmit = (e) => {
+    e.preventDefault();
+    const projectPayload = {
+      name: newProj.name,
+      code: newProj.code,
+      client_name: newProj.client_name,
+      client_email: newProj.client_email || undefined,
+      location: newProj.location || undefined,
+      description: newProj.description || undefined,
+      status: newProj.status,
+      start_date: newProj.start_date || null,
+      end_date: newProj.end_date || null
+    };
+    const validation = createProjectSchema.safeParse(projectPayload);
+    if (!validation.success) {
+      const fieldErrors = validation.error.flatten().fieldErrors;
+      const mapped = {};
+      for (const [field, msgs] of Object.entries(fieldErrors)) {
+        if (msgs && msgs.length > 0) mapped[field] = msgs[0];
+      }
+      setProjectFormErrors(mapped);
+      return;
+    }
+    setProjectFormErrors({});
+    handleSaveProject(e);
+  };
 
   // On-the-fly project state
   const [isCreatingNewProj, setIsCreatingNewProj] = useState(false);
@@ -326,7 +362,7 @@ export default function Modals({
                 <p className="text-[10px] text-secondary font-medium mt-0.5">Initialize a new project workspace</p>
               </div>
               <button
-                onClick={() => setShowProjectModal(false)}
+                onClick={() => { setShowProjectModal(false); setProjectFormErrors({}); }}
                 className="text-secondary hover:text-primary transition-colors cursor-pointer"
               >
                 <span className="material-symbols-outlined">close</span>
@@ -335,7 +371,7 @@ export default function Modals({
 
             {isMock && <MockModeWarning />}
 
-            <form onSubmit={handleSaveProject} className="space-y-4 text-xs">
+            <form onSubmit={handleProjectFormSubmit} className="space-y-4 text-xs">
               <div>
                 <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Basic Information</p>
                 <div className="grid grid-cols-2 gap-3">
@@ -345,10 +381,11 @@ export default function Modals({
                       type="text"
                       required
                       value={newProj.name}
-                      onChange={(e) => setNewProj({ ...newProj, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                      onChange={(e) => { setNewProj({ ...newProj, name: e.target.value }); clearProjectFieldError('name'); }}
+                      className={`w-full px-3 py-2 border rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs ${projectFormErrors.name ? 'border-error' : 'border-border-subtle'}`}
                       placeholder="e.g. Zenith Tower Residential"
                     />
+                    {projectFormErrors.name && <p className="text-error text-[10px] mt-1 font-medium">{projectFormErrors.name}</p>}
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Project Code *</label>
@@ -356,10 +393,11 @@ export default function Modals({
                       type="text"
                       required
                       value={newProj.code}
-                      onChange={(e) => setNewProj({ ...newProj, code: e.target.value })}
-                      className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                      onChange={(e) => { setNewProj({ ...newProj, code: e.target.value }); clearProjectFieldError('code'); }}
+                      className={`w-full px-3 py-2 border rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs ${projectFormErrors.code ? 'border-error' : 'border-border-subtle'}`}
                       placeholder="e.g. PRJ-ZTR"
                     />
+                    {projectFormErrors.code && <p className="text-error text-[10px] mt-1 font-medium">{projectFormErrors.code}</p>}
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Client Name *</label>
@@ -367,21 +405,22 @@ export default function Modals({
                       type="text"
                       required
                       value={newProj.client_name}
-                      onChange={(e) => setNewProj({ ...newProj, client_name: e.target.value })}
-                      className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                      onChange={(e) => { setNewProj({ ...newProj, client_name: e.target.value }); clearProjectFieldError('client_name'); }}
+                      className={`w-full px-3 py-2 border rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs ${projectFormErrors.client_name ? 'border-error' : 'border-border-subtle'}`}
                       placeholder="e.g. Global Realty Partners"
                     />
+                    {projectFormErrors.client_name && <p className="text-error text-[10px] mt-1 font-medium">{projectFormErrors.client_name}</p>}
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Client Email *</label>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Client Email</label>
                     <input
                       type="email"
-                      required
                       value={newProj.client_email}
-                      onChange={(e) => setNewProj({ ...newProj, client_email: e.target.value })}
-                      className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                      onChange={(e) => { setNewProj({ ...newProj, client_email: e.target.value }); clearProjectFieldError('client_email'); }}
+                      className={`w-full px-3 py-2 border rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs ${projectFormErrors.client_email ? 'border-error' : 'border-border-subtle'}`}
                       placeholder="name@client.com"
                     />
+                    {projectFormErrors.client_email && <p className="text-error text-[10px] mt-1 font-medium">{projectFormErrors.client_email}</p>}
                   </div>
                 </div>
               </div>
@@ -401,7 +440,6 @@ export default function Modals({
                 <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Location</p>
                 <input
                   type="text"
-                  required
                   value={newProj.location}
                   onChange={(e) => setNewProj({ ...newProj, location: e.target.value })}
                   className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
@@ -413,24 +451,24 @@ export default function Modals({
                 <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Timeline</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Start Date *</label>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Start Date</label>
                     <input
                       type="date"
-                      required
                       value={newProj.start_date}
-                      onChange={(e) => setNewProj({ ...newProj, start_date: e.target.value })}
-                      className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs cursor-pointer"
+                      onChange={(e) => { setNewProj({ ...newProj, start_date: e.target.value }); clearProjectFieldError('start_date'); }}
+                      className={`w-full px-3 py-2 border rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs cursor-pointer ${projectFormErrors.start_date ? 'border-error' : 'border-border-subtle'}`}
                     />
+                    {projectFormErrors.start_date && <p className="text-error text-[10px] mt-1 font-medium">{projectFormErrors.start_date}</p>}
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">End Date *</label>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">End Date</label>
                     <input
                       type="date"
-                      required
                       value={newProj.end_date}
-                      onChange={(e) => setNewProj({ ...newProj, end_date: e.target.value })}
-                      className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs cursor-pointer"
+                      onChange={(e) => { setNewProj({ ...newProj, end_date: e.target.value }); clearProjectFieldError('end_date'); }}
+                      className={`w-full px-3 py-2 border rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs cursor-pointer ${projectFormErrors.end_date ? 'border-error' : 'border-border-subtle'}`}
                     />
+                    {projectFormErrors.end_date && <p className="text-error text-[10px] mt-1 font-medium">{projectFormErrors.end_date}</p>}
                   </div>
                 </div>
               </div>
@@ -453,7 +491,7 @@ export default function Modals({
               <div className="flex justify-end gap-3 pt-3 border-t border-border-subtle">
                 <button
                   type="button"
-                  onClick={() => setShowProjectModal(false)}
+                  onClick={() => { setShowProjectModal(false); setProjectFormErrors({}); }}
                   className="py-2 px-4 rounded-lg bg-surface hover:bg-surface-container border border-border-subtle font-bold text-secondary text-xs cursor-pointer transition-colors"
                 >
                   Cancel

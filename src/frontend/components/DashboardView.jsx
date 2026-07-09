@@ -114,14 +114,21 @@ const ENTITY_ICONS = {
 
 function ActivityItem({ log, isLast }) {
   const ei = ENTITY_ICONS[log.entity_type] || ENTITY_ICONS.project;
+  const dotColor = {
+    project:  'bg-primary',
+    drawing:  'bg-indigo-500',
+    task:     'bg-success',
+    approval: 'bg-warning',
+    site_log: 'bg-tertiary',
+    auth:     'bg-secondary',
+  }[log.entity_type] || 'bg-primary';
+
   return (
-    <div className="relative flex gap-3 px-5 py-3">
+    <div className="relative pl-8 px-5 py-3">
       {!isLast && (
-        <div className="absolute left-[34px] top-[44px] bottom-0 w-px bg-border-subtle" />
+        <div className="absolute left-[34px] top-[32px] bottom-0 w-px bg-border-subtle" />
       )}
-      <div className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${ei.color}`}>
-        <span className="material-symbols-outlined text-[18px]">{ei.icon}</span>
-      </div>
+      <div className={`absolute left-[26px] top-[14px] h-2.5 w-2.5 rounded-full border-4 border-background box-content ${dotColor}`} />
       <div className="min-w-0 flex-1">
         <p className="text-body-md font-semibold text-ink-black leading-snug">{log.action}</p>
         {log.user_name && (
@@ -132,7 +139,7 @@ function ActivityItem({ log, isLast }) {
         {log.project_name && (
           <p className="text-label-sm text-slate-400 truncate">{log.project_name}</p>
         )}
-        <span className="text-label-sm text-slate-400">{relativeTime(log.created_at)}</span>
+        <span className="text-label-sm text-outline">{relativeTime(log.created_at)}</span>
       </div>
     </div>
   );
@@ -233,11 +240,6 @@ function AdminDashboard({ currentUser, projects, approvals, tasks, siteLogs, dra
       .slice(0, 5);
   }, [dashboardStats, tasks]);
 
-  const recentDrawings = useMemo(() => {
-    if (dashboardStats?.recentDrawings?.length) return dashboardStats.recentDrawings;
-    return drawings.slice(0, 3);
-  }, [dashboardStats, drawings]);
-
   const getHour = () => {
     const h = new Date().getHours();
     if (h < 12) return 'morning';
@@ -275,14 +277,12 @@ function AdminDashboard({ currentUser, projects, approvals, tasks, siteLogs, dra
         </div>
       </div>
 
-      {/* KPI Grid — 6 cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+      {/* KPI Grid — 4 cards matching Stitch design */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiCard label="Active Projects"   value={activeProjectsLen}    icon="architecture"    accent="border-l-primary"     sub={`of ${projects.length} total`}  onClick={() => setTab('projects')} />
-        <KpiCard label="Completed"         value={completedProjectsLen} icon="check_circle"    accent="border-l-success"     sub="projects finished"              onClick={() => setTab('projects')} />
         <KpiCard label="Pending Approvals" value={pendingApprovalsLen}  icon="pending_actions" accent="border-l-warning"     sub="require review"                 onClick={() => setTab('approvals')} />
-        <KpiCard label="Total Users"       value={totalUsersLen}        icon="group"           accent="border-l-indigo-400"  sub="across all roles"               onClick={() => setTab('users')} />
         <KpiCard label="Open Tasks"        value={openTasksLen}         icon="assignment_late" accent="border-l-error"       sub={overdueSub}                     onClick={() => setTab('tasks')} />
-        <KpiCard label="Site Visits"       value={siteLogsLen}          icon="location_on"     accent="border-l-orange-400"  sub="logged visits"                  onClick={() => setTab('site-logs')} />
+        <KpiCard label="Site Visits"       value={siteLogsLen}          icon="location_on"     accent="border-l-success"     sub="logged visits"                  onClick={() => setTab('site-logs')} />
       </div>
 
       {/* Widgets Row */}
@@ -354,43 +354,74 @@ function AdminDashboard({ currentUser, projects, approvals, tasks, siteLogs, dra
           </SectionCard>
         </div>
 
-        {/* Project Status Breakdown — col 3 */}
+        {/* Site Progress Feed — col 3 (replaces Project Status breakdown) */}
         <div className="col-span-12 lg:col-span-3">
-          <SectionCard title="Project Status" height="h-[460px]">
-            <div className="p-5 space-y-3">
-              {Object.entries(statusBreakdown).map(([status, count]) => {
-                const total = projects.length || 1;
-                const pct = Math.round((count / total) * 100);
-                const c = STATUS_COLORS[status] || STATUS_COLORS.planning;
-                return (
-                  <div key={status}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className={`text-label-md font-semibold capitalize ${c.text}`}>{status.replace('_', ' ')}</span>
-                      <span className="text-label-md font-bold text-ink-black">{count}</span>
-                    </div>
-                    <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${c.dot}`} style={{ width: `${pct}%`, transition: 'width 0.6s ease' }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          <SectionCard title="Site Progress" height="h-[460px]">
+            <div className="p-4 space-y-4 overflow-y-auto scroll-hide h-full">
 
-            {/* Recent drawings feed */}
-            <div className="px-5 pb-4">
-              <h4 className="text-label-md font-bold text-secondary uppercase tracking-wide mb-3 mt-2">Recent Drawings</h4>
-              {recentDrawings.length === 0
-                ? <p className="text-label-md text-secondary text-center py-4">No drawings yet</p>
-                : recentDrawings.slice(0, 3).map(d => (
-                    <div key={d.id} className="flex items-center gap-2 py-2 border-b border-border-subtle/40 last:border-none">
-                      <span className="material-symbols-outlined text-[16px] text-indigo-500">description</span>
-                      <div className="min-w-0">
-                        <p className="text-label-md font-semibold text-ink-black truncate">{d.name}</p>
-                        <p className="text-label-sm text-secondary">Rev {d.current_revision || 1}</p>
+              {/* Status breakdown mini bars */}
+              <div className="space-y-2 pb-3 border-b border-border-subtle">
+                {Object.entries(statusBreakdown).map(([status, count]) => {
+                  const total = projects.length || 1;
+                  const pct = Math.round((count / total) * 100);
+                  const c = STATUS_COLORS[status] || STATUS_COLORS.planning;
+                  return (
+                    <div key={status}>
+                      <div className="flex justify-between items-center mb-0.5">
+                        <span className={`text-label-sm font-semibold capitalize ${c.text}`}>{status.replace('_', ' ')}</span>
+                        <span className="text-label-sm font-bold text-ink-black">{count}</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${c.dot}`} style={{ width: `${pct}%`, transition: 'width 0.6s ease' }} />
                       </div>
                     </div>
-                  ))
-              }
+                  );
+                })}
+              </div>
+
+              {/* Recent site log images */}
+              <p className="text-label-md font-bold text-secondary uppercase tracking-wider pt-1">Recent Site Logs</p>
+              {siteLogs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 gap-2">
+                  <span className="material-symbols-outlined text-[36px] text-secondary/40">camera_alt</span>
+                  <p className="text-label-md text-secondary text-center">No site logs yet</p>
+                </div>
+              ) : (
+                siteLogs.slice(0, 3).map((log) => {
+                  const proj = projects.find(p => p.id === log.project_id);
+                  const hasPhoto = log.photo_url || log.photos?.[0];
+                  return (
+                    <div
+                      key={log.id}
+                      onClick={() => setTab('site-logs')}
+                      className="group cursor-pointer"
+                    >
+                      <div className="relative aspect-video rounded-lg overflow-hidden mb-1.5 bg-surface-container">
+                        {hasPhoto ? (
+                          <img
+                            src={hasPhoto}
+                            alt={log.title}
+                            className="w-full h-full object-cover img-zoom"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-surface-container-high">
+                            <span className="material-symbols-outlined text-[32px] text-secondary/40">camera_alt</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                          <span className="text-white text-label-sm font-bold flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">visibility</span> View Log
+                          </span>
+                        </div>
+                      </div>
+                      <div className="px-0.5">
+                        <p className="text-label-md font-semibold text-ink-black truncate">{log.title}</p>
+                        <p className="text-label-sm text-secondary">{proj?.name || 'Project'} · {relativeTime(log.visit_date || log.created_at)}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </SectionCard>
         </div>

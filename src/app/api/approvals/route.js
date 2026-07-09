@@ -11,10 +11,12 @@ export async function GET(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId } = auth;
+    const { tenantId, userId, role } = auth;
 
+    const allowedIds = await db.getAllowedProjectIds(tenantId, userId, role);
     const approvals = await db.getApprovals(tenantId);
-    return NextResponse.json({ approvals });
+    const filteredApprovals = approvals.filter(a => a.drawings && allowedIds.includes(a.drawings.project_id));
+    return NextResponse.json({ approvals: filteredApprovals });
   } catch (error) {
     console.error('Get Approvals API Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -11,12 +11,21 @@ export async function GET(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId } = auth;
+    const { tenantId, userId, role } = auth;
+    if (role === 'client') {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 403 });
+    }
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
+    const allowedIds = await db.getAllowedProjectIds(tenantId, userId, role);
+    if (projectId && !allowedIds.includes(projectId)) {
+      return NextResponse.json({ tasks: [] });
+    }
+
     const tasks = await db.getTasks(tenantId, projectId);
-    return NextResponse.json({ tasks });
+    const filteredTasks = tasks.filter(t => allowedIds.includes(t.project_id));
+    return NextResponse.json({ tasks: filteredTasks });
   } catch (error) {
     console.error('Get Tasks API Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -29,7 +38,10 @@ export async function POST(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId, userId } = auth;
+    const { tenantId, userId, role } = auth;
+    if (role === 'client') {
+      return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
+    }
 
     const body = await request.json();
     const validation = createTaskSchema.safeParse(body);

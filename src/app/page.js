@@ -25,6 +25,7 @@ import TasksView from '@/frontend/components/TasksView';
 import SiteLogsView from '@/frontend/components/SiteLogsView';
 import NotificationsView from '@/frontend/components/NotificationsView';
 import { UsersView, ActivityView, SettingsView, SaaSAdminView } from '@/frontend/components/AdministrativeViews';
+import ProjectDetailView from '@/frontend/components/ProjectDetailView';
 
 export default function Home() {
   const store = useStore();
@@ -37,7 +38,8 @@ export default function Home() {
     createDrawing, createDrawingRevision, submitApproval, approveDrawing, rejectDrawing,
     createTask, updateTask, completeTask, createSiteLog, markNotificationRead, fetchData,
     setError, setSuccess, inviteUser, deleteDrawing, getSignedUrl,
-    drawingSort, setDrawingSort, dashboardStatsLoading
+    drawingSort, setDrawingSort, dashboardStatsLoading,
+    openProjectDetail, projectMembers, projectTimeline, addProjectMember, removeProjectMember
   } = store;
 
   // Local UI States
@@ -420,6 +422,7 @@ export default function Home() {
             updateProject={updateProject}
             deleteProject={deleteProject}
             isAssignedView={tab === 'assigned-projects'}
+            openProjectDetail={openProjectDetail}
           />
         );
       case 'drawings':
@@ -520,6 +523,27 @@ export default function Home() {
             setNewPinComment={setNewPinComment}
             submitPinComment={submitPinComment}
             setClickCoords={setClickCoords}
+          />
+        );
+      case 'project-detail':
+        const selectedProject = projects.find(p => p.id === selectedProjectId);
+        return (
+          <ProjectDetailView
+            project={selectedProject}
+            drawings={drawings}
+            tasks={tasks}
+            users={users}
+            projectMembers={projectMembers[selectedProjectId] || []}
+            addProjectMember={addProjectMember}
+            removeProjectMember={removeProjectMember}
+            projectTimeline={projectTimeline[selectedProjectId] || []}
+            updateProject={updateProject}
+            setTab={setTab}
+            currentUser={currentUser}
+            setSelectedDrawingId={setSelectedDrawingId}
+            setSelectedApprovalId={setSelectedApprovalId}
+            siteLogs={siteLogs}
+            approvals={approvals}
           />
         );
       default:

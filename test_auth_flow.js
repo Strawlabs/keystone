@@ -137,6 +137,7 @@ async function runTests() {
     company_name: `Acme Inc ${uniqueId}`,
     company_email: `acme_${uniqueId}@corporate.com`,
     admin_email: `admin_${uniqueId}@corporate.com`,
+    admin_name: 'Acme Admin',
     company_address: '123 Acme Headquarters, Boston, MA',
     company_number: '+1 (555) 123-4567'
   });

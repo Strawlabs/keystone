@@ -34,6 +34,8 @@ export const useStore = create((set, get) => ({
   projects: [],
   drawings: [],
   drawingVersions: {}, // map drawing_id -> versions
+  projectMembers: {},  // map project_id -> members
+  projectTimeline: {}, // map project_id -> activity timeline
   approvals: [],
   tasks: [],
   siteLogs: [],
@@ -87,6 +89,9 @@ export const useStore = create((set, get) => ({
         'x-user-id': currentUser.id
       };
 
+      const isAdmin = currentUser.role === 'admin';
+      const isClient = currentUser.role === 'client';
+
       // Fetch all raw data in parallel for high-performance load balancing
       const [resProj, resDraw, resAppr, resTasks, resLogs, resNotif, resAct, resUsers, resTenant] = await Promise.all([
         apiFetch(`/api/projects?tenantId=${currentTenantId}`, { headers }),
@@ -95,8 +100,12 @@ export const useStore = create((set, get) => ({
         apiFetch(`/api/tasks?tenantId=${currentTenantId}`, { headers }),
         apiFetch(`/api/site-logs?tenantId=${currentTenantId}`, { headers }),
         apiFetch(`/api/notifications?tenantId=${currentTenantId}&userId=${currentUser.id}`, { headers }),
-        apiFetch(`/api/activity-logs?tenantId=${currentTenantId}`, { headers }),
-        apiFetch(`/api/users?tenantId=${currentTenantId}`, { headers }),
+        isAdmin
+          ? apiFetch(`/api/activity-logs?tenantId=${currentTenantId}`, { headers })
+          : Promise.resolve({ ok: true, json: () => Promise.resolve({ activityLogs: [] }) }),
+        !isClient
+          ? apiFetch(`/api/users?tenantId=${currentTenantId}`, { headers })
+          : Promise.resolve({ ok: true, json: () => Promise.resolve({ users: [] }) }),
         apiFetch('/api/company', { headers })
       ]);
 
@@ -268,6 +277,8 @@ export const useStore = create((set, get) => ({
       activeTab: 'login',
       projects: [],
       drawings: [],
+      projectMembers: {},
+      projectTimeline: {},
       approvals: [],
       tasks: [],
       siteLogs: [],
@@ -905,6 +916,88 @@ export const useStore = create((set, get) => ({
       get().setError('Network error saving settings.');
       return false;
     }
+  },
+
+  // Project Members & Timeline actions
+  fetchProjectMembers: async (projectId) => {
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/members`);
+      const data = await res.json();
+      if (res.ok) {
+        set((state) => ({
+          projectMembers: {
+            ...state.projectMembers,
+            [projectId]: data.members || []
+          }
+        }));
+      }
+    } catch (e) {
+      console.error('fetchProjectMembers error:', e);
+    }
+  },
+
+  addProjectMember: async (projectId, userId, role) => {
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/members`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id: userId, role })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        get().setError(data.error || 'Failed to add project member');
+        return false;
+      }
+      get().setSuccess('Project member added successfully');
+      await get().fetchProjectMembers(projectId);
+      return true;
+    } catch (e) {
+      get().setError('Network error adding project member.');
+      return false;
+    }
+  },
+
+  removeProjectMember: async (projectId, userId) => {
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/members?userId=${userId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        get().setError(data.error || 'Failed to remove project member');
+        return false;
+      }
+      get().setSuccess('Project member removed successfully');
+      await get().fetchProjectMembers(projectId);
+      return true;
+    } catch (e) {
+      get().setError('Network error removing project member.');
+      return false;
+    }
+  },
+
+  fetchProjectTimeline: async (projectId) => {
+    try {
+      const res = await apiFetch(`/api/activity-logs?projectId=${projectId}`);
+      const data = await res.json();
+      if (res.ok) {
+        set((state) => ({
+          projectTimeline: {
+            ...state.projectTimeline,
+            [projectId]: data.activityLogs || []
+          }
+        }));
+      }
+    } catch (e) {
+      console.error('fetchProjectTimeline error:', e);
+    }
+  },
+
+  openProjectDetail: async (projectId) => {
+    set({ selectedProjectId: projectId, activeTab: 'project-detail' });
+    await Promise.all([
+      get().fetchProjectMembers(projectId),
+      get().fetchProjectTimeline(projectId)
+    ]);
   },
 
   // Navigation Routing Helpers

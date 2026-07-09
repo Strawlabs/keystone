@@ -11,15 +11,21 @@ export async function GET(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId } = auth;
+    const { tenantId, userId, role } = auth;
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
     const search = searchParams.get('search') || '';
     const sort = searchParams.get('sort') || 'created_at_desc';
     const category = searchParams.get('category') || '';
 
+    const allowedIds = await db.getAllowedProjectIds(tenantId, userId, role);
+    if (projectId && !allowedIds.includes(projectId)) {
+      return NextResponse.json({ drawings: [] });
+    }
+
     const drawings = await db.getDrawings(tenantId, projectId, { search, sort, category });
-    return NextResponse.json({ drawings });
+    const filteredDrawings = drawings.filter(d => allowedIds.includes(d.project_id));
+    return NextResponse.json({ drawings: filteredDrawings });
   } catch (error) {
     console.error('Get Drawings API Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -32,7 +38,10 @@ export async function POST(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId, userId } = auth;
+    const { tenantId, userId, role } = auth;
+    if (role === 'client') {
+      return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
+    }
     
     const body = await request.json();
     const validation = createDrawingSchema.safeParse(body);

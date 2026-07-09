@@ -13,7 +13,7 @@ export async function POST(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId } = auth;
+    const { tenantId, userId, role } = auth;
 
     const body = await request.json();
     const validation = getSignedUrlSchema.safeParse(body);
@@ -29,20 +29,30 @@ export async function POST(request) {
     // We verify by finding a drawing or drawing_version with this storage_path under the tenant.
     const { data: drawingMatch, error: matchError } = await supabase
       .from('drawings')
-      .select('id, tenant_id')
+      .select('id, tenant_id, project_id')
       .eq('storage_path', storagePath)
       .eq('tenant_id', tenantId)
       .maybeSingle();
 
     const { data: versionMatch } = await supabase
       .from('drawing_versions')
-      .select('id, drawing_id, drawings!inner(tenant_id)')
+      .select('id, drawing_id, drawings!inner(tenant_id, project_id)')
       .eq('storage_path', storagePath)
       .eq('drawings.tenant_id', tenantId)
       .maybeSingle();
 
     // Also allow site-logs paths stored in site_log_photos for the same tenant
     const isAuthorized = drawingMatch || versionMatch;
+
+    if (isAuthorized) {
+      const projectId = drawingMatch?.project_id || versionMatch?.drawings?.project_id;
+      if (projectId) {
+        const allowedIds = await db.getAllowedProjectIds(tenantId, userId, role);
+        if (!allowedIds.includes(projectId)) {
+          return NextResponse.json({ error: 'Unauthorized: Access to this drawing is restricted.' }, { status: 403 });
+        }
+      }
+    }
 
     if (!isAuthorized) {
       // As a fallback for site-log photos and other uploads, verify the path prefix

@@ -165,13 +165,15 @@ export function getAuthContext(request) {
     const userId = request.headers.get('x-user-id');
     const userRole = request.headers.get('x-user-role') || 'admin';
     
-    return {
-      tenantId: tenantId || 't1',
-      userId: userId || 'u1',
-      role: userRole,
-      isJwt: false,
-      isAuthenticated: true
-    };
+    if (tenantId || userId) {
+      return {
+        tenantId: tenantId || 't1',
+        userId: userId || 'u1',
+        role: userRole,
+        isJwt: false,
+        isAuthenticated: true
+      };
+    }
   }
   
   return {

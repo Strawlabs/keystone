@@ -44,11 +44,16 @@ export async function GET(request) {
     );
 
     // ── ARCHITECT aggregations ───────────────────────────────────────────────
-    // Include projects created by the user OR where they appear in project_members
+    // Include projects created by the user, where they appear in project_members, or where they have an assigned task
     const memberProjectIds = new Set(
       projectMembers.filter(m => m.user_id === userId).map(m => m.project_id)
     );
-    const myProjects           = projects.filter(p => p.created_by === userId || memberProjectIds.has(p.id));
+    const taskProjectIds = new Set(
+      tasks.filter(t => t.assigned_to === userId).map(t => t.project_id)
+    );
+    const myProjects           = projects.filter(
+      p => p.created_by === userId || memberProjectIds.has(p.id) || taskProjectIds.has(p.id)
+    );
     const myTasks              = tasks.filter(t => t.assigned_to === userId && t.status !== 'completed');
     const myDrawings           = drawings.filter(d => d.uploaded_by === userId);
     const mySubmittedApprovals = approvals.filter(a => a.submitted_by === userId && a.status === 'pending');
@@ -70,7 +75,7 @@ export async function GET(request) {
       }
     }
 
-    const clientProjects          = projects.filter(p => p.client_email === clientEmail);
+    const clientProjects          = projects.filter(p => (clientEmail && p.client_email === clientEmail) || memberProjectIds.has(p.id));
     const clientProjectIds        = new Set(clientProjects.map(p => p.id));
     const clientApprovalsPending  = approvals.filter(a => a.client_id === userId && a.status === 'pending');
     const clientApprovalsApproved = approvals.filter(a => a.client_id === userId && a.status === 'approved');

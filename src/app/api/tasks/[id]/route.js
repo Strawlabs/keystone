@@ -10,7 +10,10 @@ export async function PUT(request, { params }) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId, userId } = auth;
+    const { tenantId, userId, role } = auth;
+    if (role === 'client') {
+      return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
+    }
     const { id } = await params;
 
     // Verify task ownership under the caller's tenant
