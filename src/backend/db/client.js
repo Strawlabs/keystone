@@ -62,7 +62,7 @@ export const db = {
   },
 
   async getTenant(id) {
-    const { data, error } = await supabase.from('tenants').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('tenants').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
     return data;
   },
@@ -133,7 +133,7 @@ export const db = {
   },
 
   async getProject(id) {
-    const { data, error } = await supabase.from('projects').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('projects').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
     return data;
   },
@@ -320,7 +320,7 @@ export const db = {
   },
 
   async getDrawing(id) {
-    const { data, error } = await supabase.from('drawings').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('drawings').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
     return data;
   },
@@ -411,7 +411,7 @@ export const db = {
   },
 
   async getApproval(id) {
-    const { data, error } = await supabase.from('approvals').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('approvals').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
     return data;
   },

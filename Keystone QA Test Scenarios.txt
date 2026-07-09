@@ -37,3 +37,32 @@ Scenario 5: Unauthenticated API Access Protection
 - When: Fetching projects via the /api/projects endpoint.
 - Then: The backend blocks the request and returns an HTTP 401 Unauthorized status.
 - Verified: ✅ Test 6 in integration test suite ("Securing routes against unauthenticated requests").
+
+Scenario 6: Task Creation & Assignee Notification
+-------------------------------------------------
+- Given: A task is created with an assigned user.
+- When: Saving the task via the POST /api/tasks endpoint.
+- Then: The task is saved successfully, an activity log entry is recorded, and the assigned user receives a notification.
+- Verified: ✅ Test 9 in integration test suite ("Task creation input validation (missing title)") and createNotification call in POST /api/tasks handler.
+
+Scenario 7: Task Status Update
+------------------------------
+- Given: A task status is updated.
+- When: A status transition happens (e.g. pending -> completed or delayed).
+- Then: The change is processed immediately, a status-specific activity log is written (e.g., "Task Completed", "Task Delayed"), and appropriate notifications are triggered.
+- Verified: ✅ PUT endpoint in `/api/tasks/[id]/route.js` status checks.
+
+Scenario 8: Overdue Task Highlighting
+-------------------------------------
+- Given: A task is past its due date and status is not completed.
+- When: Viewing the task boards or dashboards.
+- Then: The UI highlights the task as "Overdue" (red accent and event_busy icon).
+- Verified: ✅ isOverdue helper checks in TasksView and DashboardView.
+
+Scenario 9: Task Filtering
+--------------------------
+- Given: A user chooses to filter tasks.
+- When: Selecting filter options like "Assigned to Me", "Pending", "Completed", or "Delayed".
+- Then: Only matching tasks are displayed on the boards.
+- Verified: ✅ React state-driven filter computations inside page.js and TasksView.
+

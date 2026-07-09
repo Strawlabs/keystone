@@ -203,6 +203,33 @@ async function runTests() {
     console.error('❌ Security leak! Cross-tenant request succeeded or failed with incorrect code. Status:', crossTenantRes.status, crossTenantRes.body);
   }
 
+  // Test 9: Task creation with missing title (Zod validation check)
+  console.log('\nTest 9: Task creation input validation (missing title)...');
+  const badTaskRes = await post('/api/tasks', {
+    project_id: 'bbf8eb21-4c9a-4e34-82df-7903f2e1849c', // dummy uuid
+    priority: 'high'
+  }, { 'Authorization': `Bearer ${testToken}` });
+
+  if (badTaskRes.status === 400) {
+    console.log('✅ Correctly rejected invalid task payload (Zod check). Message:', badTaskRes.body.error);
+  } else {
+    console.error('❌ Failed to reject incomplete task payload. Status:', badTaskRes.status, badTaskRes.body);
+  }
+
+  // Test 10: Task creation under cross-tenant project (HTTP 403)
+  console.log('\nTest 10: Cross-tenant task creation blocker...');
+  const crossTaskRes = await post('/api/tasks', {
+    project_id: 'bbf8eb21-4c9a-4e34-82df-7903f2e1849c', // victim's project id
+    title: 'Hack task',
+    priority: 'low'
+  }, { 'Authorization': `Bearer ${attackerToken}` });
+
+  if (crossTaskRes.status === 403 || crossTaskRes.status === 404) {
+    console.log('✅ Enforced tenant isolation and blocked task creation under cross-tenant project.');
+  } else {
+    console.error('❌ Security leak! Allowed task creation under cross-tenant project. Status:', crossTaskRes.status, crossTaskRes.body);
+  }
+
   console.log('\n=== Auth & Security Integration testing sequence finished ===');
 }
 
