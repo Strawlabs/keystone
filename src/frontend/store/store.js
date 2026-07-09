@@ -70,7 +70,7 @@ export const useStore = create((set, get) => ({
   },
 
   // Initialize and load all data from APIs
-  fetchData: async () => {
+  fetchData: async (isBackground = false) => {
     const { currentTenantId, currentUser } = get();
     if (!currentUser) return;
 
@@ -82,7 +82,9 @@ export const useStore = create((set, get) => ({
       return;
     }
 
-    set({ loading: true });
+    if (!isBackground) {
+      set({ loading: true });
+    }
     try {
       const headers = {
         'x-tenant-id': currentTenantId,
@@ -717,7 +719,7 @@ export const useStore = create((set, get) => ({
         return false;
       }
       get().setSuccess('Task created and assigned');
-      await get().fetchData();
+      await get().fetchData(true); // Background refresh
       return true;
     } catch (e) {
       get().setError('Network error creating task.');
@@ -726,7 +728,13 @@ export const useStore = create((set, get) => ({
   },
 
   updateTask: async (taskId, updates) => {
-    const { currentTenantId, currentUser } = get();
+    const { currentTenantId, currentUser, tasks } = get();
+    // Optimistic update
+    const originalTasks = [...tasks];
+    set({
+      tasks: tasks.map(t => t.id === taskId ? { ...t, ...updates } : t)
+    });
+
     try {
       const res = await apiFetch(`/api/tasks/${taskId}`, {
         method: 'PUT',
@@ -738,20 +746,28 @@ export const useStore = create((set, get) => ({
       });
       const data = await res.json();
       if (!res.ok) {
+        set({ tasks: originalTasks }); // Rollback
         get().setError(data.error || 'Failed to update task');
         return false;
       }
       get().setSuccess('Task updated successfully');
-      await get().fetchData();
+      await get().fetchData(true); // Background refresh
       return true;
     } catch (e) {
+      set({ tasks: originalTasks }); // Rollback
       get().setError('Network error updating task.');
       return false;
     }
   },
 
   completeTask: async (taskId) => {
-    const { currentTenantId, currentUser } = get();
+    const { currentTenantId, currentUser, tasks } = get();
+    // Optimistic update
+    const originalTasks = [...tasks];
+    set({
+      tasks: tasks.map(t => t.id === taskId ? { ...t, status: 'completed' } : t)
+    });
+
     try {
       const res = await apiFetch(`/api/tasks/${taskId}/complete`, {
         method: 'POST',
@@ -763,13 +779,15 @@ export const useStore = create((set, get) => ({
       });
       const data = await res.json();
       if (!res.ok) {
+        set({ tasks: originalTasks }); // Rollback
         get().setError(data.error || 'Failed to complete task');
         return false;
       }
       get().setSuccess('Task marked as completed');
-      await get().fetchData();
+      await get().fetchData(true); // Background refresh
       return true;
     } catch (e) {
+      set({ tasks: originalTasks }); // Rollback
       get().setError('Network error completing task.');
       return false;
     }
