@@ -44,6 +44,46 @@ function post(path, body, headers = {}) {
   });
 }
 
+// Helper to make HTTP PUT requests
+function put(path, body, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const req = http.request({
+      hostname: 'localhost',
+      port: PORT,
+      path: path,
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': data.length,
+        ...headers
+      }
+    }, (res) => {
+      let responseBody = '';
+      res.on('data', (chunk) => { responseBody += chunk; });
+      res.on('end', () => {
+        try {
+          resolve({
+            status: res.statusCode,
+            headers: res.headers,
+            body: JSON.parse(responseBody)
+          });
+        } catch (e) {
+          resolve({
+            status: res.statusCode,
+            headers: res.headers,
+            body: responseBody
+          });
+        }
+      });
+    });
+
+    req.on('error', (err) => { reject(err); });
+    req.write(data);
+    req.end();
+  });
+}
+
 // Helper to make HTTP GET requests
 function get(path, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -142,8 +182,13 @@ async function runTests() {
     company_number: '+1 (555) 123-4567'
   });
 
+  let registeredCompanyId = 'da3b89fa-1c66-419b-a01f-0e86234b6794';
+  let registeredAdminId = 'a6d71b3c-66f8-4395-950c-03d1fb9ff7cc';
+
   if (regRes.status === 201) {
     console.log('✅ Company registered and temporary admin account created.');
+    registeredCompanyId = regRes.body.company_id;
+    registeredAdminId = regRes.body.admin_id;
   } else if (regRes.status === 500 && regRes.body.error && regRes.body.error.includes('column')) {
     console.log('✅ API endpoint hit database. Database column migration required to complete insert.');
     console.log('Note: Database needs: company_email (tenants) and password_hash (users).');
@@ -174,7 +219,12 @@ async function runTests() {
 
   // Test 7: Zod schema parsing and input validation (HTTP 400)
   console.log('\nTest 7: Input validation of bad project payload (Zod parsing)...');
-  const testToken = signJwt({ company_id: 't1', user_id: 'u1', role: 'admin', email: 'admin@t1.com' });
+  const testToken = signJwt({
+    company_id: registeredCompanyId,
+    user_id: registeredAdminId,
+    role: 'admin',
+    email: `admin_${uniqueId}@corporate.com`
+  });
   const badPayloadRes = await post('/api/projects', {
     name: '', // Empty name (should trigger validation error)
     code: 'A' // Code too short
@@ -188,13 +238,13 @@ async function runTests() {
 
   // Test 8: Tenant Isolation Enforcement (HTTP 403 on Cross-tenant project creation or admin invite)
   console.log('\nTest 8: Cross-tenant isolation verification...');
-  const attackerToken = signJwt({ company_id: 'tenant-attacker', user_id: 'user-attacker', role: 'admin', email: 'attacker@corp.com' });
+  const attackerToken = signJwt({ company_id: '3e92efb1-789a-4c28-98e3-294a5c9f5624', user_id: 'b6f5d167-27cc-449e-ba78-f7b2496a77d1', role: 'admin', email: 'attacker@corp.com' });
   const crossTenantRes = await post('/api/admin/invite', {
     name: 'New Worker',
     email: 'worker@acme.com',
     role: 'staff',
-    tenantId: 'tenant-victim', // Attacker attempts to invite user to victim's tenant
-    adminId: 'user-victim'
+    tenantId: 'da3b89fa-1c66-419b-a01f-0e86234b6794', // Attacker attempts to invite user to victim's tenant
+    adminId: 'a6d71b3c-66f8-4395-950c-03d1fb9ff7cc'
   }, { 'Authorization': `Bearer ${attackerToken}` });
 
   if (crossTenantRes.status === 403) {
@@ -228,6 +278,50 @@ async function runTests() {
     console.log('✅ Enforced tenant isolation and blocked task creation under cross-tenant project.');
   } else {
     console.error('❌ Security leak! Allowed task creation under cross-tenant project. Status:', crossTaskRes.status, crossTaskRes.body);
+  }
+
+  // Test 11: Create project, create task, and update task status via PUT API
+  console.log('\nTest 11: Task update and status change validation...');
+  const projectCode = `TST${Date.now().toString().slice(-4)}`;
+  const createProjRes = await post('/api/projects', {
+    name: 'Integration Test Project',
+    code: projectCode,
+    client_name: 'Test Client',
+    client_email: 'testclient@example.com',
+    status: 'planning'
+  }, { 'Authorization': `Bearer ${testToken}` });
+
+  if (createProjRes.status === 201) {
+    const createdProject = createProjRes.body.project;
+    console.log('✅ Created integration test project successfully. Code:', createdProject.code);
+
+    const createTaskRes = await post('/api/tasks', {
+      project_id: createdProject.id,
+      title: 'Verify Update Schema Task',
+      priority: 'medium',
+      due_date: '2026-09-07'
+    }, { 'Authorization': `Bearer ${testToken}` });
+
+    if (createTaskRes.status === 200 || createTaskRes.status === 201) {
+      const createdTask = createTaskRes.body.task;
+      console.log('✅ Created task successfully. Task ID:', createdTask.id);
+
+      // Try updating status via PUT endpoint (validating updateTaskSchema status inclusion)
+      const putUpdateRes = await put(`/api/tasks/${createdTask.id}`, {
+        status: 'completed',
+        priority: 'high'
+      }, { 'Authorization': `Bearer ${testToken}` });
+
+      if (putUpdateRes.status === 200 && putUpdateRes.body.task.status === 'completed') {
+        console.log('✅ Successfully updated task status to "completed" via PUT /api/tasks/[id].');
+      } else {
+        console.error('❌ Failed to update task status. Status:', putUpdateRes.status, putUpdateRes.body);
+      }
+    } else {
+      console.error('❌ Failed to create task. Status:', createTaskRes.status, createTaskRes.body);
+    }
+  } else {
+    console.error('❌ Failed to create project for task tests. Status:', createProjRes.status, createProjRes.body);
   }
 
   console.log('\n=== Auth & Security Integration testing sequence finished ===');

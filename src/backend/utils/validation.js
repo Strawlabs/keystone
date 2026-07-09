@@ -47,7 +47,9 @@ export const createTaskSchema = z.object({
 });
 
 // Update task
-export const updateTaskSchema = createTaskSchema.partial();
+export const updateTaskSchema = createTaskSchema.partial().extend({
+  status: z.enum(['pending', 'in_progress', 'completed', 'delayed']).optional()
+});
 
 // Create site log
 export const createSiteLogSchema = z.object({
