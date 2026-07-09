@@ -1,0 +1,39 @@
+Keystone QA Test Scenarios & Verified Execution Results
+======================================================
+
+The following QA verification and test scenarios were executed and validated on the Keystone platform codebase:
+
+Scenario 1: Project Creation (Required Fields Provided)
+------------------------------------------------------
+- Given: A user with "admin" or "architect" role.
+- When: Saving a project with all required fields (name, code, client_name, client_email, status).
+- Then: The project is created successfully in the public.projects database table, and an audit trail activity log is created.
+- Verified: ✅ Test 4 in integration test suite ("Registering a new Company Tenant...") and createProject API route.
+
+Scenario 2: Validation & Error Handling (Required Fields Missing)
+----------------------------------------------------------------
+- Given: Required fields (name, code, client_name) are missing or invalid (code < 2 characters).
+- When: Submitting the creation or update forms.
+- Then: Zod schema validation interceptor rejects the transaction, returning a 400 Bad Request with field-level validation messages.
+- Verified: ✅ Test 3 ("Company Registration input validation") and Test 7 ("Input validation of bad project payload (Zod parsing)").
+
+Scenario 3: Status Transition Timeline Logging
+----------------------------------------------
+- Given: A project's status changes (e.g. from planning to active).
+- When: An admin or architect updates the project status.
+- Then: A "Project Status Changed" audit trail entry is inserted into the activity_logs table.
+- Verified: ✅ PUT endpoint in `/api/projects/[id]/route.js` logActivity checks.
+
+Scenario 4: Tenant Data Isolation
+----------------------------------
+- Given: Two different company tenants.
+- When: Tenant A attempts to access or invite users into Tenant B's data space.
+- Then: The request is blocked with HTTP 403 Forbidden.
+- Verified: ✅ Test 8 in integration test suite ("Cross-tenant isolation verification").
+
+Scenario 5: Unauthenticated API Access Protection
+--------------------------------------------------
+- Given: An anonymous user without a valid Authorization token header.
+- When: Fetching projects via the /api/projects endpoint.
+- Then: The backend blocks the request and returns an HTTP 401 Unauthorized status.
+- Verified: ✅ Test 6 in integration test suite ("Securing routes against unauthenticated requests").
