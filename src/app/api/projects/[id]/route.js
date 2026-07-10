@@ -10,7 +10,10 @@ export async function PUT(request, { params }) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId, userId } = auth;
+    const { tenantId, userId, role } = auth;
+    if (role !== 'admin' && role !== 'architect') {
+      return NextResponse.json({ error: 'Forbidden: Insufficient permissions to edit projects.' }, { status: 403 });
+    }
     const { id } = await params;
 
     const project = await db.getProject(id);
@@ -69,7 +72,10 @@ export async function DELETE(request, { params }) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId, userId } = auth;
+    const { tenantId, userId, role } = auth;
+    if (role !== 'admin' && role !== 'architect') {
+      return NextResponse.json({ error: 'Forbidden: Insufficient permissions to archive projects.' }, { status: 403 });
+    }
     const { id } = await params;
 
     const project = await db.getProject(id);

@@ -10,12 +10,18 @@ export async function GET(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId } = auth;
+    const { tenantId, userId, role } = auth;
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
 
+    const allowedIds = await db.getAllowedProjectIds(tenantId, userId, role);
+    if (projectId && !allowedIds.includes(projectId)) {
+      return NextResponse.json({ siteLogs: [] });
+    }
+
     const siteLogs = await db.getSiteLogs(tenantId, projectId);
-    return NextResponse.json({ siteLogs });
+    const filteredLogs = siteLogs.filter(s => allowedIds.includes(s.project_id));
+    return NextResponse.json({ siteLogs: filteredLogs });
   } catch (error) {
     console.error('Get Site Logs API Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

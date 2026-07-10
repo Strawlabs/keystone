@@ -42,10 +42,8 @@ export async function PATCH(request, { params }) {
     const { id } = await params;
 
     // Permission check: only admin or architect can update drawing metadata
-    const { currentUser } = auth;
-    // Re-fetch user role from token
-    const requestRole = request.headers.get('x-user-role');
-    if (requestRole === 'client' || requestRole === 'staff') {
+    const { role } = auth;
+    if (role === 'client' || role === 'staff') {
       return NextResponse.json({ error: 'Unauthorized: Insufficient permissions to update drawing metadata.' }, { status: 403 });
     }
 
@@ -96,8 +94,8 @@ export async function DELETE(request, { params }) {
     const { id } = await params;
 
     // Permission check: only admin or architect can delete drawings
-    const requestRole = request.headers.get('x-user-role');
-    if (requestRole === 'client' || requestRole === 'staff') {
+    const { role } = auth;
+    if (role === 'client' || role === 'staff') {
       return NextResponse.json({ error: 'Unauthorized: Insufficient permissions to delete drawings.' }, { status: 403 });
     }
 

@@ -56,7 +56,10 @@ export default function Sidebar({
                 }}
               />
             ) : null}
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white shrink-0" style={{ display: currentTenant?.logo_url ? 'none' : 'flex' }}>
+            <div
+              className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white shrink-0"
+              style={{ display: currentTenant?.logo_url ? 'none' : 'flex' }}
+            >
               <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>architecture</span>
             </div>
             <div className="min-w-0">
@@ -83,13 +86,16 @@ export default function Sidebar({
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-semibold transition-all cursor-pointer group ${
                   isActive
                     ? 'bg-secondary-container text-primary font-semibold border-l-4 border-primary rounded-r-lg'
-                    : 'text-secondary hover:bg-surface-container-low transition-colors duration-150 rounded-lg'
+                    : 'text-secondary hover:bg-surface-container-low hover:text-primary transition-colors duration-150 rounded-lg'
                 }`}
               >
-                <span className="material-symbols-outlined text-[20px]" style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                <span
+                  className="material-symbols-outlined text-[20px] transition-colors"
+                  style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
+                >
                   {iconName}
                 </span>
                 <span className="flex-1 text-left">{item.label}</span>

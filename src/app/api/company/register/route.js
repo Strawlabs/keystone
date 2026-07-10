@@ -131,6 +131,7 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       company_id: newTenant.id,
+      admin_id: adminId,
       message: 'Company and admin account registered successfully. Verification email sent.'
     }, { status: 201 });
 

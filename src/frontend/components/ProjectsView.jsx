@@ -75,6 +75,7 @@ export default function ProjectsView({
   updateProject,
   deleteProject,
   isAssignedView,
+  openProjectDetail,
 }) {
   const [archivingId, setArchivingId] = useState(null);
   const [editingProject, setEditingProject] = useState(null);
@@ -86,15 +87,26 @@ export default function ProjectsView({
   const canEdit = !isClient && !isStaff;
 
   const handleArchive = async (id) => {
-    if (!confirm('Archive this project? It will be marked as completed.')) return;
+    if (!confirm('Archive this project? This action will permanently archive the project and cannot be undone.')) return;
     setArchivingId(id);
-    await updateProject?.(id, { status: 'completed' });
+    // Calls DELETE /api/projects/:id which logs "Project Archived" in audit trail
+    await deleteProject?.(id);
     setArchivingId(null);
   };
 
   const handleEditOpen = (p) => {
     setEditingProject(p);
-    setEditForm({ name: p.name, status: p.status, description: p.description || '', client_name: p.client_name });
+    setEditForm({
+      name: p.name,
+      code: p.code || '',
+      status: p.status,
+      description: p.description || '',
+      client_name: p.client_name || '',
+      client_email: p.client_email || '',
+      location: p.location || '',
+      start_date: p.start_date || '',
+      end_date: p.end_date || ''
+    });
   };
 
   const handleEditSave = async () => {
@@ -245,7 +257,11 @@ export default function ProjectsView({
                 const team = getProjectTeam(p.id);
 
                 return (
-                  <tr key={p.id} className="project-row hover:bg-primary/5 transition-colors cursor-pointer group">
+                  <tr
+                    key={p.id}
+                    onClick={() => openProjectDetail?.(p.id)}
+                    className="project-row hover:bg-primary/5 transition-colors cursor-pointer group"
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${colorClass}`}>
@@ -307,7 +323,7 @@ export default function ProjectsView({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            // View details action placeholder or routing
+                            openProjectDetail?.(p.id);
                           }}
                           className="p-1.5 hover:bg-primary/10 rounded text-primary transition-colors cursor-pointer"
                           title="View"
@@ -417,60 +433,74 @@ export default function ProjectsView({
         )}
       </div>
 
-      {/* Bento Preview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-surface-container-lowest p-6 rounded-xl border border-border-subtle relative overflow-hidden group shadow-sm">
-          <div className="relative z-10">
-            <p className="text-label-md font-bold text-secondary uppercase tracking-wider mb-1">Active Projects</p>
-            <h3 class="text-headline-lg font-bold text-ink-black">{activeCount}</h3>
-            <p className="text-label-sm text-success flex items-center gap-1 mt-2 font-medium">
-              <span className="material-symbols-outlined text-[14px]">trending_up</span>
-              +2 this month
-            </p>
-          </div>
-          <span className="material-symbols-outlined absolute -bottom-4 -right-4 text-primary/5 text-[120px] select-none pointer-events-none group-hover:scale-110 transition-transform duration-500">
-            architecture
-          </span>
-        </div>
+      {/* Bento Preview Stats — computed from real project data */}
+      {(() => {
+        const totalCount = baseProjectsList.length;
+        const completedCount = baseProjectsList.filter(p => p.status === 'completed').length;
+        const onHoldCount = baseProjectsList.filter(p => p.status === 'on_hold').length;
+        const planningCount = baseProjectsList.filter(p => p.status === 'planning').length;
+        // Workload: projects that are active or in-planning (not completed/cancelled/on_hold)
+        const workloadActive = activeCount + planningCount;
+        const workloadPct = totalCount > 0 ? Math.round((workloadActive / totalCount) * 100) : 0;
+        const availablePct = 100 - workloadPct;
+        const workloadLabel = workloadPct >= 75 ? 'High Capacity' : workloadPct >= 40 ? 'Moderate Capacity' : 'Low Capacity';
 
-        <div className="bg-surface-container-lowest p-6 rounded-xl border border-border-subtle relative overflow-hidden group shadow-sm">
-          <div className="relative z-10">
-            <p className="text-label-md font-bold text-secondary uppercase tracking-wider mb-1">Upcoming Deadlines</p>
-            <h3 class="text-headline-lg font-bold text-ink-black">{upcomingCount || 4}</h3>
-            <p className="text-label-sm text-warning flex items-center gap-1 mt-2 font-medium">
-              <span className="material-symbols-outlined text-[14px]">schedule</span>
-              Due within 14 days
-            </p>
-          </div>
-          <span className="material-symbols-outlined absolute -bottom-4 -right-4 text-warning/5 text-[120px] select-none pointer-events-none group-hover:scale-110 transition-transform duration-500">
-            event
-          </span>
-        </div>
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="bg-surface-container-lowest p-6 rounded-xl border border-border-subtle relative overflow-hidden group shadow-sm">
+              <div className="relative z-10">
+                <p className="text-label-md font-bold text-secondary uppercase tracking-wider mb-1">Active Projects</p>
+                <h3 className="text-headline-lg font-bold text-ink-black">{activeCount}</h3>
+                <p className="text-label-sm text-success flex items-center gap-1 mt-2 font-medium">
+                  <span className="material-symbols-outlined text-[14px]">trending_up</span>
+                  {planningCount > 0 ? `${planningCount} in planning` : 'No new projects'}
+                </p>
+              </div>
+              <span className="material-symbols-outlined absolute -bottom-4 -right-4 text-primary/5 text-[120px] select-none pointer-events-none group-hover:scale-110 transition-transform duration-500">
+                architecture
+              </span>
+            </div>
 
-        <div className="bg-surface-container-lowest p-6 rounded-xl border border-border-subtle md:col-span-2 relative overflow-hidden shadow-sm">
-          <div className="relative z-10 h-full flex flex-col justify-between">
-            <div>
-              <p className="text-label-md font-bold text-secondary uppercase tracking-wider mb-1">Studio Workload</p>
-              <h3 className="text-headline-md font-bold text-ink-black">High Capacity</h3>
-            </div>
-            <div className="mt-4">
-              <div className="flex justify-between text-label-sm mb-1">
-                <span className="text-secondary font-medium">84% Utilized</span>
-                <span className="text-primary font-bold">16% Available</span>
+            <div className="bg-surface-container-lowest p-6 rounded-xl border border-border-subtle relative overflow-hidden group shadow-sm">
+              <div className="relative z-10">
+                <p className="text-label-md font-bold text-secondary uppercase tracking-wider mb-1">Upcoming Deadlines</p>
+                <h3 className="text-headline-lg font-bold text-ink-black">{upcomingCount}</h3>
+                <p className="text-label-sm text-warning flex items-center gap-1 mt-2 font-medium">
+                  <span className="material-symbols-outlined text-[14px]">schedule</span>
+                  {upcomingCount === 1 ? 'Due within 14 days' : 'Due within 14 days'}
+                </p>
               </div>
-              <div className="w-full h-3 bg-surface-container-high rounded-full overflow-hidden flex">
-                <div className="h-full bg-primary w-[84%]"></div>
-                <div className="h-full bg-secondary-container w-[16%]"></div>
+              <span className="material-symbols-outlined absolute -bottom-4 -right-4 text-warning/5 text-[120px] select-none pointer-events-none group-hover:scale-110 transition-transform duration-500">
+                event
+              </span>
+            </div>
+
+            <div className="bg-surface-container-lowest p-6 rounded-xl border border-border-subtle md:col-span-2 relative overflow-hidden shadow-sm">
+              <div className="relative z-10 h-full flex flex-col justify-between">
+                <div>
+                  <p className="text-label-md font-bold text-secondary uppercase tracking-wider mb-1">Studio Workload</p>
+                  <h3 className="text-headline-md font-bold text-ink-black">{workloadLabel}</h3>
+                </div>
+                <div className="mt-4">
+                  <div className="flex justify-between text-label-sm mb-1">
+                    <span className="text-secondary font-medium">{workloadPct}% Active / Planning</span>
+                    <span className="text-primary font-bold">{completedCount} Completed · {onHoldCount} On Hold</span>
+                  </div>
+                  <div className="w-full h-3 bg-surface-container-high rounded-full overflow-hidden flex">
+                    <div className="h-full bg-primary transition-all duration-500" style={{ width: `${workloadPct}%` }}></div>
+                    <div className="h-full bg-secondary-container" style={{ width: `${availablePct}%` }}></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Edit Project Modal */}
       {editingProject && (
         <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest border border-border-subtle rounded-2xl w-full max-w-sm p-6 shadow-2xl space-y-5 animate-scale-up">
+          <div className="bg-surface-container-lowest border border-border-subtle rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-5 animate-scale-up text-on-surface max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-border-subtle pb-3">
               <h3 className="text-body-lg font-bold text-ink-black">Edit Project</h3>
               <button
@@ -481,32 +511,100 @@ export default function ProjectsView({
               </button>
             </div>
             <div className="space-y-4 text-xs">
-              <div>
-                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">
-                  Project Name
-                </label>
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">
-                  Status
-                </label>
-                <select
-                  value={editForm.status}
-                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                  className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs cursor-pointer"
-                >
-                  <option value="planning">Planning</option>
-                  <option value="active">Active</option>
-                  <option value="on_hold">On Hold</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">
+                    Project Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.name || ''}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">
+                    Project Code
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.code || ''}
+                    onChange={(e) => setEditForm({ ...editForm, code: e.target.value.toUpperCase() })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs cursor-pointer"
+                  >
+                    <option value="planning">Planning</option>
+                    <option value="active">Active</option>
+                    <option value="on_hold">On Hold</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">
+                    Site Location
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.location || ''}
+                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">
+                    Client Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.client_name || ''}
+                    onChange={(e) => setEditForm({ ...editForm, client_name: e.target.value })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">
+                    Client Email
+                  </label>
+                  <input
+                    type="email"
+                    value={editForm.client_email || ''}
+                    onChange={(e) => setEditForm({ ...editForm, client_email: e.target.value })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.start_date || ''}
+                    onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">
+                    Target End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.end_date || ''}
+                    onChange={(e) => setEditForm({ ...editForm, end_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs cursor-pointer"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">
@@ -514,7 +612,7 @@ export default function ProjectsView({
                 </label>
                 <textarea
                   rows={3}
-                  value={editForm.description}
+                  value={editForm.description || ''}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                   className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
                 />

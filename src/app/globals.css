@@ -50,6 +50,11 @@
   box-shadow: 0px 4px 12px rgba(0,0,0,0.05);
 }
 
+/* Project table row — reveal actions on hover */
+.project-row:hover .row-actions {
+  opacity: 1 !important;
+}
+
 .timeline-line::before {
   content: '';
   position: absolute;
@@ -63,10 +68,12 @@
   display: none;
 }
 
-.scroll-hide::-webkit-scrollbar {
+.scroll-hide::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
   display: none;
 }
-.scroll-hide {
+.scroll-hide,
+.no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
@@ -93,6 +100,22 @@
 }
 .animate-fade-in {
   animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+.animate-scale-up {
+  animation: scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Site progress feed — image zoom on hover */
+.img-zoom {
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.img-zoom:hover {
+  transform: scale(1.08);
 }
 
 @keyframes slideIn {

@@ -63,17 +63,40 @@ export default function TasksView({
 
   const canCreate = !isClient;
 
+  // Single date parsed once per render
+  const now = React.useMemo(() => new Date(), []);
+
+  // Memoize project lookup map
+  const projectMap = React.useMemo(() => {
+    const map = {};
+    for (const p of projects || []) {
+      map[p.id] = p.name;
+    }
+    return map;
+  }, [projects]);
+
+  // Memoize user lookup map
+  const userMap = React.useMemo(() => {
+    const map = {};
+    for (const u of users || []) {
+      map[u.id] = {
+        name: u.name,
+        avatar: getAvatarUrl(u.id)
+      };
+    }
+    return map;
+  }, [users]);
+
   const getAssigneeName = (id) => {
-    const user = (users || []).find(u => u.id === id);
-    return user?.name || 'Unassigned';
+    return userMap[id]?.name || 'Unassigned';
   };
 
   const getProjectName = (projectId) => {
-    return projects.find(p => p.id === projectId)?.name || 'General Project';
+    return projectMap[projectId] || 'General Project';
   };
 
   const isOverdue = (task) => {
-    return task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed';
+    return task.due_date && new Date(task.due_date) < now && task.status !== 'completed';
   };
 
   // Filter tasks in memory for columns
@@ -252,7 +275,7 @@ export default function TasksView({
                               <img
                                 alt={getAssigneeName(t.assigned_to)}
                                 className="w-6 h-6 rounded-full bg-surface-container object-cover border border-border-subtle"
-                                src={getAvatarUrl(t.assigned_to)}
+                                src={userMap[t.assigned_to]?.avatar || getAvatarUrl(null)}
                                 title={getAssigneeName(t.assigned_to)}
                               />
                             </div>
@@ -319,7 +342,7 @@ export default function TasksView({
                           <img
                             alt={getAssigneeName(t.assigned_to)}
                             className="w-6 h-6 rounded-full bg-surface-container object-cover border border-border-subtle shrink-0"
-                            src={getAvatarUrl(t.assigned_to)}
+                            src={userMap[t.assigned_to]?.avatar || getAvatarUrl(null)}
                           />
                           <span className="text-secondary font-semibold truncate max-w-[120px]">
                             {getAssigneeName(t.assigned_to)}

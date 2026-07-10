@@ -62,7 +62,7 @@ export const db = {
   },
 
   async getTenant(id) {
-    const { data, error } = await supabase.from('tenants').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('tenants').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
     return data;
   },
@@ -133,7 +133,7 @@ export const db = {
   },
 
   async getProject(id) {
-    const { data, error } = await supabase.from('projects').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('projects').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
     return data;
   },
@@ -172,6 +172,58 @@ export const db = {
     return true;
   },
 
+  async getAllowedProjectIds(tenantId, userId, role) {
+    if (role === 'admin') {
+      const { data, error } = await supabase.from('projects').select('id').eq('tenant_id', tenantId);
+      if (error) throw error;
+      return (data || []).map(p => p.id);
+    }
+
+    // Step 1: get projects of tenant with created_by and client_email
+    const { data: createdProj, error: createdError } = await supabase
+      .from('projects')
+      .select('id, client_email, created_by')
+      .eq('tenant_id', tenantId);
+    if (createdError) throw createdError;
+
+    // Step 2: get projects where they are in project_members
+    const { data: memberRows, error: memberError } = await supabase
+      .from('project_members')
+      .select('project_id')
+      .eq('user_id', userId);
+    if (memberError) throw memberError;
+    const memberProjectIds = new Set(memberRows.map(m => m.project_id));
+
+    // Step 3: get projects where they are assigned a task
+    const { data: taskRows, error: taskError } = await supabase
+      .from('tasks')
+      .select('project_id')
+      .eq('assigned_to', userId);
+    if (taskError) throw taskError;
+    const taskProjectIds = new Set(taskRows.map(t => t.project_id));
+
+    // Step 4: if client, get their email and check client_email
+    let clientEmail = '';
+    if (role === 'client') {
+      const user = await this.getUser(userId);
+      if (user) clientEmail = user.email;
+    }
+
+    const allowedIds = [];
+    for (const p of (createdProj || [])) {
+      const isCreator = p.created_by === userId;
+      const isMember = memberProjectIds.has(p.id);
+      const hasTask = taskProjectIds.has(p.id);
+      const isClientMatch = role === 'client' && clientEmail && p.client_email === clientEmail;
+
+      if (isCreator || isMember || hasTask || isClientMatch) {
+        allowedIds.push(p.id);
+      }
+    }
+
+    return allowedIds;
+  },
+
   // Returns all project_members rows whose project belongs to the given tenant.
   // project_members has no tenant_id column — Supabase JS v2 .in() requires a plain array,
   // so we first fetch the project IDs for this tenant, then use them as a filter.
@@ -193,6 +245,35 @@ export const db = {
       .in('project_id', projectIds);
     if (error) throw error;
     return data || [];
+  },
+
+  async getProjectMembersByProject(projectId) {
+    const { data, error } = await supabase
+      .from('project_members')
+      .select('id, project_id, user_id, role, users:users(name, email, role, status, avatar_url)')
+      .eq('project_id', projectId);
+    if (error) throw error;
+    return data || [];
+  },
+
+  async addProjectMember(memberData) {
+    const { data, error } = await supabase
+      .from('project_members')
+      .upsert([memberData], { onConflict: 'project_id,user_id' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async removeProjectMember(projectId, userId) {
+    const { error } = await supabase
+      .from('project_members')
+      .delete()
+      .eq('project_id', projectId)
+      .eq('user_id', userId);
+    if (error) throw error;
+    return true;
   },
 
   // ---- DRAWINGS & REVISIONS ----
@@ -239,7 +320,7 @@ export const db = {
   },
 
   async getDrawing(id) {
-    const { data, error } = await supabase.from('drawings').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('drawings').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
     return data;
   },
@@ -330,7 +411,7 @@ export const db = {
   },
 
   async getApproval(id) {
-    const { data, error } = await supabase.from('approvals').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('approvals').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
     return data;
   },

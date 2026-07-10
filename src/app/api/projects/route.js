@@ -10,10 +10,32 @@ export async function GET(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId } = auth;
+    const { tenantId, userId, role } = auth;
 
+    const { searchParams } = new URL(request.url);
+    const statusFilter = searchParams.get('status');   // e.g. ?status=active
+    const searchQuery = searchParams.get('search')?.toLowerCase(); // e.g. ?search=zenith
+
+    const allowedIds = await db.getAllowedProjectIds(tenantId, userId, role);
     const projects = await db.getProjects(tenantId);
-    return NextResponse.json({ projects });
+
+    let filteredProjects = projects.filter(p => allowedIds.includes(p.id));
+
+    // Optional server-side status filter
+    if (statusFilter && statusFilter !== 'all') {
+      filteredProjects = filteredProjects.filter(p => p.status === statusFilter);
+    }
+
+    // Optional server-side search filter (name, code, client_name)
+    if (searchQuery) {
+      filteredProjects = filteredProjects.filter(p =>
+        p.name?.toLowerCase().includes(searchQuery) ||
+        p.code?.toLowerCase().includes(searchQuery) ||
+        p.client_name?.toLowerCase().includes(searchQuery)
+      );
+    }
+
+    return NextResponse.json({ projects: filteredProjects });
   } catch (error) {
     console.error('Get Projects API Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -26,7 +48,10 @@ export async function POST(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId, userId } = auth;
+    const { tenantId, userId, role } = auth;
+    if (role !== 'admin' && role !== 'architect') {
+      return NextResponse.json({ error: 'Forbidden: Insufficient permissions to create projects.' }, { status: 403 });
+    }
     
     const body = await request.json();
     const validation = createProjectSchema.safeParse(body);
