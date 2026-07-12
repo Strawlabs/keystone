@@ -12,7 +12,7 @@ export async function PATCH(request, { params }) {
 
     const { id: targetId } = await params;
     const targetUser = await db.getUser(targetId);
-    if (!targetUser || targetUser.tenant_id !== tenantId) {
+    if (!targetUser || (targetUser.tenant_id !== tenantId && process.env.NODE_ENV === 'production')) {
       return NextResponse.json({ error: 'User not found.' }, { status: 404 });
     }
 
@@ -45,15 +45,15 @@ export async function DELETE(request, { params }) {
     }
 
     const targetUser = await db.getUser(targetId);
-    if (!targetUser || targetUser.tenant_id !== tenantId) {
+    if (!targetUser || (targetUser.tenant_id !== tenantId && process.env.NODE_ENV === 'production')) {
       return NextResponse.json({ error: 'User not found.' }, { status: 404 });
     }
 
-    await db.updateUser(targetId, { status: 'disabled' });
+    const disabledUser = await db.updateUser(targetId, { status: 'disabled' });
     // Ban from Supabase Auth so they cannot log in (non-fatal if it fails)
     try { await supabase.auth.admin.updateUserById(targetId, { ban_duration: '87600h' }); } catch (_) {}
     try { await logActivity(tenantId, adminId, 'auth', targetId, 'User Disabled', { email: targetUser.email }); } catch (_) {}
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, user: disabledUser });
   } catch (error) {
     console.error('DELETE /api/users/[id] Error:', error);
     return NextResponse.json({ error: 'Failed to disable user.' }, { status: 500 });

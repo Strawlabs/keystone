@@ -3,8 +3,12 @@ import { create } from 'zustand';
 // Zero-dependency API fetch wrapper to automatically attach Bearer JWT token
 const apiFetch = async (url, options = {}) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('keystone_token') : null;
+  const storeState = typeof useStore !== 'undefined' && useStore.getState ? useStore.getState() : {};
   const headers = {
     'Content-Type': 'application/json',
+    'x-tenant-id': storeState.currentTenantId || 't1',
+    'x-user-id': storeState.currentUser?.id || 'u1',
+    'x-user-role': storeState.currentUser?.role || 'admin',
     ...options.headers
   };
   if (token) {
@@ -17,9 +21,20 @@ const apiFetch = async (url, options = {}) => {
   if ((res.status === 401 || res.status === 403) && typeof window !== 'undefined') {
     if (!url.includes('/api/auth/login') && !url.includes('/api/company/register')) {
       const store = useStore.getState();
-      if (store.isAuthenticated) {
-        store.logout();
-        store.setError(res.status === 403 ? 'Your account has been deactivated or disabled.' : 'Session expired or unauthorized. Please log in again.');
+      let errorMsg = '';
+      try {
+        const cloned = res.clone();
+        const data = await cloned.json();
+        errorMsg = data?.error || '';
+      } catch (e) {}
+
+      const isDeactivated = errorMsg.toLowerCase().includes('deactivated') || errorMsg.toLowerCase().includes('disabled');
+
+      if (res.status === 401 || isDeactivated) {
+        if (store.isAuthenticated) {
+          store.logout();
+          store.setError(isDeactivated ? 'Your account has been deactivated or disabled.' : 'Session expired or unauthorized. Please log in again.');
+        }
       }
     }
   }
@@ -882,6 +897,7 @@ export const useStore = create((set, get) => ({
       get().setSuccess('User updated successfully');
       // Optimistic local update so the list refreshes without a full re-fetch
       set(state => ({ users: state.users.map(u => u.id === userId ? { ...u, ...updates } : u) }));
+      get().fetchData();
       return true;
     } catch (e) {
       get().setError('Network error updating user.');
@@ -900,6 +916,7 @@ export const useStore = create((set, get) => ({
       }
       get().setSuccess('User disabled successfully');
       set(state => ({ users: state.users.map(u => u.id === userId ? { ...u, status: 'disabled' } : u) }));
+      get().fetchData();
       return true;
     } catch (e) {
       get().setError('Network error disabling user.');

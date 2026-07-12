@@ -354,12 +354,12 @@ export default function Modals({
     <>
       {/* 1. CREATE PROJECT MODAL */}
       {showProjectModal && (
-        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest border border-border-subtle rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-5 animate-scale-up text-on-surface max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest border border-border-subtle rounded-2xl w-full max-w-lg p-6 shadow-modal space-y-5 animate-scale-up text-on-surface max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-border-subtle pb-3">
               <div>
                 <h3 className="text-body-lg font-bold text-ink-black">Create New Project</h3>
-                <p className="text-[10px] text-secondary font-medium mt-0.5">Initialize a new project workspace</p>
+                <p className="text-[11px] text-secondary font-medium mt-0.5">Initialize a new project workspace</p>
               </div>
               <button
                 onClick={() => { setShowProjectModal(false); setProjectFormErrors({}); }}

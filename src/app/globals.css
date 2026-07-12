@@ -2,6 +2,7 @@
 
 @theme {
   --color-primary: #004ac6;
+  --color-primary-hover: #003594;
   --color-primary-container: #2563eb;
   --color-on-primary-container: #eeefff;
   --color-background: #f7f9fb;
@@ -15,23 +16,23 @@
   --color-surface-container-high: #e6e8ea;
   --color-surface-container-highest: #e0e3e5;
   --color-on-surface: #191c1e;
-  --color-on-surface-variant: #434655;
+  --color-on-surface-variant: #434654;
   --color-inverse-surface: #2d3133;
   --color-inverse-on-surface: #eff1f3;
-  --color-outline: #737686;
-  --color-outline-variant: #c3c6d7;
-  --color-surface-tint: #0053db;
-  --color-secondary: #515f74;
-  --color-secondary-container: #d5e3fc;
-  --color-on-secondary-container: #57657a;
-  --color-tertiary: #943700;
-  --color-tertiary-container: #bc4800;
-  --color-on-tertiary-container: #ffede6;
+  --color-outline: #737685;
+  --color-outline-variant: #c3c6d6;
+  --color-surface-tint: #1b55d0;
+  --color-secondary: #545f73;
+  --color-secondary-container: #d5e0f8;
+  --color-on-secondary-container: #586377;
+  --color-tertiary: #2f3f53;
+  --color-tertiary-container: #46566c;
+  --color-on-tertiary-container: #bacbe5;
   --color-ink-black: #0F172A;
   --color-border-subtle: #E2E8F0;
-  --color-success: #22C55E;
+  --color-success: #16a34a;
   --color-warning: #F59E0B;
-  --color-error: #EF4444;
+  --color-error: #ba1a1a;
 }
 
 @layer base {
@@ -39,6 +40,34 @@
     @apply antialiased bg-background text-on-background;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
+}
+
+/* Stitch Elevation & Depth Hierarchy (Level 1, 2, 3) */
+.glass-panel-level-1 {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.glass-card-level-2 {
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 4px 16px rgba(0, 74, 198, 0.04), 0 1px 3px rgba(15, 23, 42, 0.03);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card-level-2:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 12px 28px rgba(0, 74, 198, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+  transform: translateY(-2px);
+}
+
+.glass-floating-level-3 {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 20px 38px rgba(0, 74, 198, 0.12), 0 8px 16px rgba(15, 23, 42, 0.08);
 }
 
 .premium-card {
@@ -163,7 +192,7 @@
 
 /* Focus ring */
 *:focus-visible {
-  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline: 2px solid rgba(59, 130, 246, 0.65);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -175,20 +204,26 @@
 
 /* Dashboard KPI trend indicators */
 .stat-trend-up {
-  color: #22C55E;
-  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.12);
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 .stat-trend-down {
-  color: #EF4444;
-  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.12);
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 /* Count-up entrance animation for KPI numbers */
@@ -213,4 +248,43 @@
   bottom: 0;
   width: 1px;
   background-color: #E2E8F0;
+}
+
+/* Premium Linear / Stripe UI Elevation & Glass Tokens */
+.shadow-elevated {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+}
+.shadow-modal {
+  box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+}
+.shadow-toast {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+/* High-performance Skeleton block */
+.skeleton-block {
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite linear;
+  border-radius: 6px;
+}
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Table row interactive transition */
+.table-row-hover {
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.table-row-hover:hover {
+  background-color: rgba(248, 250, 252, 0.85);
+}
+
+/* Interactive Button Press Micro-interaction */
+.btn-interactive {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn-interactive:active {
+  transform: scale(0.98);
 }

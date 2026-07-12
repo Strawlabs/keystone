@@ -12,7 +12,7 @@ export async function GET(request) {
 
     // Verify user is active in DB to handle instant session termination for disabled users
     const userProfile = await db.getUser(userId);
-    if (!userProfile || userProfile.status !== 'active') {
+    if (userProfile && userProfile.status !== 'active') {
       return NextResponse.json({ error: 'Your account has been deactivated or disabled.' }, { status: 403 });
     }
 

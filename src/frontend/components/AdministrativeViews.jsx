@@ -172,9 +172,9 @@ export function UsersView({ users = [], setShowUserModal }) {
                   </td>
                   <td className="px-6 py-4 text-secondary font-semibold text-body-md">{u.email}</td>
                   <td className="px-6 py-4 text-center">
-                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold capitalize ${u.status === 'active' ? 'text-success' : 'text-error'}`}>
-                      <span className={`w-2 h-2 rounded-full ${u.status === 'active' ? 'bg-success' : 'bg-error'}`} />
-                      {u.status || 'active'}
+                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold capitalize ${u.status === 'disabled' ? 'text-error' : 'text-success'}`}>
+                      <span className={`w-2 h-2 rounded-full ${u.status === 'disabled' ? 'bg-error' : 'bg-success'}`} />
+                      {u.status === 'disabled' ? 'Disabled' : (u.status || 'Active')}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -459,13 +459,25 @@ export function SettingsView({ store }) {
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="py-2.5 px-5 bg-primary hover:bg-primary-container rounded-lg text-xs font-bold text-white transition-colors cursor-pointer shadow-sm active:scale-95 disabled:opacity-60"
-          >
-            {saving ? 'Saving…' : 'Save Company Details'}
-          </button>
+          <div className="flex items-center justify-between pt-3 border-t border-border-subtle/80">
+            <span className="text-[11px] text-secondary font-medium">Changes apply immediately across all team member views.</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setForm({ name: currentTenant?.name || '', logo_url: currentTenant?.logo_url || '', address: currentTenant?.address || '', contact_email: currentTenant?.contact_email || '' })}
+                className="py-2 px-4 bg-surface-container hover:bg-surface-container-high rounded-xl text-xs font-semibold text-secondary transition-all cursor-pointer"
+              >
+                Reset
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="py-2 px-5 bg-primary hover:bg-primary-container rounded-xl text-xs font-bold text-white transition-all cursor-pointer shadow-elevated btn-interactive disabled:opacity-60"
+              >
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
         </form>
       </div>
 

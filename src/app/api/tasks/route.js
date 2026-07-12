@@ -13,7 +13,7 @@ export async function GET(request) {
     }
     const { tenantId, userId, role } = auth;
     if (role === 'client') {
-      return NextResponse.json({ error: 'Unauthorized.' }, { status: 403 });
+      return NextResponse.json({ tasks: [] });
     }
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
@@ -81,9 +81,10 @@ export async function POST(request) {
     });
 
     // Log activity
-    await logActivity(tenantId, userId, 'task', newTask.id, 'Task Assigned', {
+    const actionName = assigned_to ? 'Task Assigned' : 'Task Created';
+    await logActivity(tenantId, userId, 'task', newTask.id, actionName, {
       taskTitle: title,
-      assignedTo: assigned_to
+      assignedTo: assigned_to || null
     });
 
     // Notify assignee

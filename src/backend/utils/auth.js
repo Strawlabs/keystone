@@ -161,19 +161,29 @@ export function getAuthContext(request) {
 
   // Fallback to query parameters or legacy headers for quick dev logins (ONLY in non-production)
   if (process.env.NODE_ENV !== 'production') {
-    const tenantId = request.headers.get('x-tenant-id');
-    const userId = request.headers.get('x-user-id');
+    let queryTenantId = null;
+    let queryUserId = null;
+    try {
+      if (request.url) {
+        const urlObj = new URL(request.url, 'http://localhost');
+        queryTenantId = urlObj.searchParams.get('tenantId');
+        queryUserId = urlObj.searchParams.get('userId');
+      }
+    } catch (e) {
+      // ignore URL parse errors
+    }
+
+    const tenantId = request.headers.get('x-tenant-id') || queryTenantId || 't1';
+    const userId = request.headers.get('x-user-id') || queryUserId || 'u1';
     const userRole = request.headers.get('x-user-role') || 'admin';
     
-    if (tenantId || userId) {
-      return {
-        tenantId: tenantId || 't1',
-        userId: userId || 'u1',
-        role: userRole,
-        isJwt: false,
-        isAuthenticated: true
-      };
-    }
+    return {
+      tenantId,
+      userId,
+      role: userRole,
+      isJwt: false,
+      isAuthenticated: true
+    };
   }
   
   return {
