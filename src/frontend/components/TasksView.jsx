@@ -302,22 +302,22 @@ export default function TasksView({
         <div className="bg-surface-container-lowest border border-border-subtle rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-surface-container-low border-b border-border-subtle text-secondary font-bold select-none">
-                  <th className="px-6 py-4 uppercase tracking-wider">Task Name</th>
-                  <th className="px-6 py-4 uppercase tracking-wider">Project</th>
-                  <th className="px-6 py-4 uppercase tracking-wider">Assigned User</th>
-                  <th className="px-6 py-4 uppercase tracking-wider">Due Date</th>
-                  <th className="px-6 py-4 uppercase tracking-wider text-center">Priority</th>
-                  <th className="px-6 py-4 uppercase tracking-wider text-center">Status</th>
-                  <th className="px-6 py-4 uppercase tracking-wider text-right">Actions</th>
+              <thead className="sticky top-0 z-10 bg-surface-container-low shadow-xs">
+                <tr className="border-b border-border-subtle text-secondary font-bold select-none">
+                  <th className="px-6 py-3.5 text-[11px] uppercase tracking-wider">Task Name</th>
+                  <th className="px-6 py-3.5 text-[11px] uppercase tracking-wider">Project</th>
+                  <th className="px-6 py-3.5 text-[11px] uppercase tracking-wider">Assigned User</th>
+                  <th className="px-6 py-3.5 text-[11px] uppercase tracking-wider">Due Date</th>
+                  <th className="px-6 py-3.5 text-[11px] uppercase tracking-wider text-center">Priority</th>
+                  <th className="px-6 py-3.5 text-[11px] uppercase tracking-wider text-center">Status</th>
+                  <th className="px-6 py-3.5 text-[11px] uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
                 {filteredTasks.map((t) => {
                   const overdue = isOverdue(t);
                   return (
-                    <tr key={t.id} className="hover:bg-primary/5 transition-colors cursor-pointer group" onClick={() => setEditingTask(t)}>
+                    <tr key={t.id} className="table-row-hover transition-colors cursor-pointer group" onClick={() => setEditingTask(t)}>
                       <td className="px-6 py-4">
                         <div>
                           <p className={`font-bold leading-snug text-ink-black ${t.status === 'completed' ? 'line-through text-secondary' : ''}`}>

@@ -38,7 +38,7 @@ export default function Sidebar({
   };
 
   return (
-    <aside className={`w-64 h-screen fixed left-0 top-0 bg-surface border-r border-border-subtle flex flex-col justify-between py-6 px-4 z-50 shrink-0 select-none transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+    <aside className={`w-64 h-screen fixed left-0 top-0 glass-panel-level-1 border-r border-border-subtle flex flex-col justify-between py-6 px-4 z-50 shrink-0 select-none transition-transform duration-300 ease-in-out lg:translate-x-0 ${
       isOpen ? 'translate-x-0' : '-translate-x-full'
     }`}>
       <div>
@@ -57,19 +57,19 @@ export default function Sidebar({
               />
             ) : null}
             <div
-              className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white shrink-0"
+              className="w-10 h-10 bg-[#004ac6] rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm"
               style={{ display: currentTenant?.logo_url ? 'none' : 'flex' }}
             >
               <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>architecture</span>
             </div>
             <div className="min-w-0">
               <h1 className="text-body-lg font-extrabold text-on-surface leading-tight truncate">{currentTenant?.name || 'Keystone Studio'}</h1>
-              <p className="text-[10px] uppercase tracking-wider font-bold text-secondary">{getSubText()}</p>
+              <p className="text-[10px] uppercase tracking-wider font-mono font-bold text-[#004ac6]">{getSubText()}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="lg:hidden p-1.5 text-secondary hover:text-primary rounded-lg hover:bg-surface-container-low transition-colors cursor-pointer"
+            className="lg:hidden p-1.5 text-secondary hover:text-[#004ac6] rounded-lg hover:bg-surface-container-low transition-colors cursor-pointer"
             title="Close Menu"
           >
             <span className="material-symbols-outlined">close</span>
@@ -86,14 +86,14 @@ export default function Sidebar({
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-semibold transition-all cursor-pointer group ${
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-semibold transition-all cursor-pointer group rounded-xl ${
                   isActive
-                    ? 'bg-secondary-container text-primary font-semibold border-l-4 border-primary rounded-r-lg'
-                    : 'text-secondary hover:bg-surface-container-low hover:text-primary transition-colors duration-150 rounded-lg'
+                    ? 'bg-[#004ac6]/10 text-[#004ac6] font-bold shadow-xs border border-[#004ac6]/25'
+                    : 'text-secondary hover:bg-surface-container-low hover:text-on-background'
                 }`}
               >
                 <span
-                  className="material-symbols-outlined text-[20px] transition-colors"
+                  className="material-symbols-outlined text-[20px] transition-transform group-hover:scale-110"
                   style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
                 >
                   {iconName}
@@ -101,7 +101,7 @@ export default function Sidebar({
                 <span className="flex-1 text-left">{item.label}</span>
                 {/* Notification badge */}
                 {isNotif && unreadCount > 0 && (
-                  <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${isActive ? 'bg-primary text-on-primary' : 'bg-primary-container text-primary'}`}>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-error text-white shadow-sm">
                     {unreadCount}
                   </span>
                 )}

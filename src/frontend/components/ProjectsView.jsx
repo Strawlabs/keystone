@@ -239,15 +239,15 @@ export default function ProjectsView({
       <div className="bg-surface-container-lowest rounded-xl border border-border-subtle overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface-container-low border-b border-border-subtle">
-                <th className="px-6 py-4 text-label-md font-bold text-secondary uppercase tracking-wider">Project Name</th>
-                <th className="px-6 py-4 text-label-md font-bold text-secondary uppercase tracking-wider">Client</th>
-                <th className="px-6 py-4 text-label-md font-bold text-secondary uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-label-md font-bold text-secondary uppercase tracking-wider">Team</th>
-                <th className="px-6 py-4 text-label-md font-bold text-secondary uppercase tracking-wider">Completion %</th>
-                <th className="px-6 py-4 text-label-md font-bold text-secondary uppercase tracking-wider">Deadline</th>
-                <th className="px-6 py-4 text-label-md font-bold text-secondary uppercase tracking-wider text-right">Actions</th>
+            <thead className="sticky top-0 z-10 bg-surface-container-low shadow-xs">
+              <tr className="border-b border-border-subtle">
+                <th className="px-6 py-3.5 text-[11px] font-bold text-secondary uppercase tracking-wider">Project Name</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold text-secondary uppercase tracking-wider">Client</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold text-secondary uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold text-secondary uppercase tracking-wider">Team</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold text-secondary uppercase tracking-wider">Completion %</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold text-secondary uppercase tracking-wider">Deadline</th>
+                <th className="px-6 py-3.5 text-[11px] font-bold text-secondary uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -260,7 +260,7 @@ export default function ProjectsView({
                   <tr
                     key={p.id}
                     onClick={() => openProjectDetail?.(p.id)}
-                    className="project-row hover:bg-primary/5 transition-colors cursor-pointer group"
+                    className="project-row table-row-hover transition-colors cursor-pointer group"
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">

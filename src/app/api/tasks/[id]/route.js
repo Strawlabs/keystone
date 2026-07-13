@@ -44,7 +44,10 @@ export async function PUT(request, { params }) {
     const updatedTask = await db.updateTask(id, updates);
 
     // 1. Detect and Log custom activity events
+    let loggedEvent = false;
+
     if (status && status !== task.status) {
+      loggedEvent = true;
       if (status === 'completed') {
         await logActivity(tenantId, userId, 'task', id, 'Task Completed', {
           taskTitle: updatedTask.title
@@ -73,7 +76,10 @@ export async function PUT(request, { params }) {
           status: updatedTask.status
         });
       }
-    } else if (assigned_to && assigned_to !== task.assigned_to) {
+    }
+
+    if (assigned_to && assigned_to !== task.assigned_to) {
+      loggedEvent = true;
       await logActivity(tenantId, userId, 'task', id, 'Task Assigned', {
         taskTitle: updatedTask.title,
         assignedTo: assigned_to
@@ -87,7 +93,9 @@ export async function PUT(request, { params }) {
         `You have been assigned a task: "${updatedTask.title}". Due: ${updatedTask.due_date || 'No due date'}.`,
         'task_assigned'
       );
-    } else {
+    }
+
+    if (!loggedEvent) {
       await logActivity(tenantId, userId, 'task', id, 'Task Updated', {
         taskTitle: updatedTask.title,
         status: updatedTask.status

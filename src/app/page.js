@@ -145,34 +145,46 @@ export default function Home() {
     setSuccess('Comment pin dropped on blueprint!');
   };
 
-  // Toast Alerts Render
+  // Premium Linear / Vercel-style Toast Notification Render
   const renderToasts = () => (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md">
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2.5 max-w-md w-full sm:w-[380px] pointer-events-none">
       {successMessage && (
-        <div className="bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-xl flex items-center justify-between gap-3 animate-fade-in border border-emerald-500 text-sm">
-          <div className="flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 shrink-0" />
-            <span>{successMessage}</span>
+        <div className="pointer-events-auto bg-slate-900/95 text-white p-3.5 rounded-xl shadow-toast border border-emerald-500/30 backdrop-blur-xl flex items-start justify-between gap-3 animate-slide-in">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <CheckCircle className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Success</p>
+              <p className="text-xs font-medium text-slate-200 mt-0.5 leading-snug">{successMessage}</p>
+            </div>
           </div>
           <button 
             onClick={() => setSuccess(null)}
-            className="text-white/80 hover:text-white transition-colors cursor-pointer text-lg font-bold pl-2 border-l border-white/20 leading-none"
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1 rounded-md hover:bg-slate-800"
+            aria-label="Dismiss notification"
           >
-            &times;
+            <span className="text-base font-semibold leading-none">&times;</span>
           </button>
         </div>
       )}
       {error && (
-        <div className="bg-rose-600 text-white px-4 py-3 rounded-lg shadow-xl flex items-center justify-between gap-3 animate-fade-in border border-rose-500 text-sm">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 shrink-0" />
-            <span>{error}</span>
+        <div className="pointer-events-auto bg-slate-900/95 text-white p-3.5 rounded-xl shadow-toast border border-rose-500/30 backdrop-blur-xl flex items-start justify-between gap-3 animate-slide-in">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-rose-400 uppercase tracking-wider">Attention Required</p>
+              <p className="text-xs font-medium text-slate-200 mt-0.5 leading-snug">{error}</p>
+            </div>
           </div>
           <button 
             onClick={() => setError(null)}
-            className="text-white/80 hover:text-white transition-colors cursor-pointer text-lg font-bold pl-2 border-l border-white/20 leading-none"
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1 rounded-md hover:bg-slate-800"
+            aria-label="Dismiss error"
           >
-            &times;
+            <span className="text-base font-semibold leading-none">&times;</span>
           </button>
         </div>
       )}

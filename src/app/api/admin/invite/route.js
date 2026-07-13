@@ -53,6 +53,19 @@ export async function POST(request) {
     // --- Check if user already exists in public.users ---
     const existingProfile = await db.getUserByEmail(normalizedEmail);
     if (existingProfile) {
+      if (existingProfile.status === 'disabled') {
+        const reactivated = await db.updateUser(existingProfile.id, {
+          status: 'active',
+          name: name.trim() || existingProfile.name,
+          role: role || existingProfile.role,
+          tenant_id: tenantId
+        });
+        try { await supabase.auth.admin.updateUserById(existingProfile.id, { ban_duration: 'none' }); } catch (_) {}
+        return NextResponse.json(
+          { success: true, user: reactivated, message: 'Reactivated previously disabled user account.' },
+          { status: 200 }
+        );
+      }
       return NextResponse.json(
         { error: 'A user with this email already exists in this workspace.' },
         { status: 409 }
@@ -64,6 +77,7 @@ export async function POST(request) {
     const passwordHash = await hashPassword(demoPassword);
 
     // --- Provision user in Supabase Auth to satisfy the foreign key constraint ---
+    let newUserId;
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: normalizedEmail,
       password: demoPassword,
@@ -71,13 +85,28 @@ export async function POST(request) {
     });
 
     if (authError) {
-      return NextResponse.json(
-        { error: `Auth provisioning failed: ${authError.message}` },
-        { status: 400 }
-      );
+      const isAlreadyRegistered = authError.message?.toLowerCase().includes('already registered') ||
+                                  authError.message?.toLowerCase().includes('already exists');
+      if (isAlreadyRegistered) {
+        const { data: listRes } = await supabase.auth.admin.listUsers();
+        const existingAuthUser = listRes?.users?.find(u => u.email?.toLowerCase() === normalizedEmail);
+        if (existingAuthUser) {
+          newUserId = existingAuthUser.id;
+        } else {
+          return NextResponse.json(
+            { error: `Auth provisioning failed: ${authError.message}` },
+            { status: 400 }
+          );
+        }
+      } else {
+        return NextResponse.json(
+          { error: `Auth provisioning failed: ${authError.message}` },
+          { status: 400 }
+        );
+      }
+    } else {
+      newUserId = authData.user.id;
     }
-
-    const newUserId = authData.user.id;
 
     // --- Create user profile in PostgreSQL ---
     let userProfile;

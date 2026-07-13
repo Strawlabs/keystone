@@ -39,14 +39,17 @@ function StatusPill({ status }) {
   );
 }
 
-function KpiCard({ label, value, icon, accent, sub, onClick, loading = false }) {
+function KpiCard({ label, value, icon, accent, sub, trend, trendUp = true, onClick, loading = false }) {
   if (loading) {
     return (
-      <div className={`premium-card p-5 rounded-xl border-l-4 ${accent} flex flex-col justify-between h-[120px]`}>
-        <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
+      <div className={`premium-card p-5 rounded-xl border-l-4 ${accent} flex flex-col justify-between h-[126px]`}>
+        <div className="flex justify-between items-center">
+          <div className="h-4 w-24 skeleton-block" />
+          <div className="h-6 w-6 skeleton-block rounded-md" />
+        </div>
         <div>
-          <div className="h-9 w-12 bg-slate-200 rounded animate-pulse mb-1" />
-          <div className="h-3 w-20 bg-slate-100 rounded animate-pulse" />
+          <div className="h-9 w-16 skeleton-block mb-1.5" />
+          <div className="h-3 w-28 skeleton-block" />
         </div>
       </div>
     );
@@ -54,15 +57,25 @@ function KpiCard({ label, value, icon, accent, sub, onClick, loading = false }) 
   return (
     <div
       onClick={onClick}
-      className={`premium-card p-5 rounded-xl border-l-4 ${accent} flex flex-col justify-between h-[120px] ${onClick ? 'cursor-pointer hover:shadow-md' : ''} transition-all`}
+      className={`premium-card p-5 rounded-xl border-l-4 ${accent} flex flex-col justify-between h-[126px] ${onClick ? 'cursor-pointer card-hover' : ''} transition-all`}
     >
       <div className="flex justify-between items-start">
-        <span className="text-secondary font-label-md text-label-md">{label}</span>
+        <span className="text-secondary font-semibold text-xs tracking-wide uppercase">{label}</span>
         <span className="material-symbols-outlined text-[20px] text-secondary">{icon}</span>
       </div>
       <div>
-        <div className="text-[34px] leading-none font-extrabold text-ink-black mb-1">{value ?? '—'}</div>
-        {sub && <div className="text-label-sm text-secondary">{sub}</div>}
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="text-[34px] leading-none font-extrabold text-ink-black mb-1 animate-count-up">{value ?? '—'}</div>
+          {trend && (
+            <span className={trendUp ? 'stat-trend-up' : 'stat-trend-down'}>
+              <span className="material-symbols-outlined text-[14px]">
+                {trendUp ? 'trending_up' : 'trending_down'}
+              </span>
+              {trend}
+            </span>
+          )}
+        </div>
+        {sub && <div className="text-[11px] text-secondary font-medium">{sub}</div>}
       </div>
     </div>
   );
@@ -257,11 +270,11 @@ function AdminDashboard({ currentUser, projects, approvals, tasks, siteLogs, dra
             Good {getHour()}, {currentUser?.name?.split(' ')[0]}. Here is what is happening across your projects today.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2.5 shrink-0">
           <button
             id="admin-new-project-btn"
             onClick={() => setShowProjectModal?.(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-body-md font-bold bg-primary text-white hover:opacity-90 transition-all active:scale-95 shadow-sm cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-primary text-white hover:bg-primary-container transition-all btn-interactive shadow-elevated cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">add</span>
             New Project
@@ -269,7 +282,7 @@ function AdminDashboard({ currentUser, projects, approvals, tasks, siteLogs, dra
           <button
             id="admin-invite-user-btn"
             onClick={() => setShowUserModal?.(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-body-md font-medium border border-border-subtle bg-white hover:bg-surface-container-low transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border border-border-subtle bg-white hover:bg-surface-container-low transition-all btn-interactive shadow-xs cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">person_add</span>
             Invite User
@@ -277,12 +290,12 @@ function AdminDashboard({ currentUser, projects, approvals, tasks, siteLogs, dra
         </div>
       </div>
 
-      {/* KPI Grid — 4 cards matching Stitch design */}
+      {/* KPI Grid — 4 cards matching Stripe / Vercel design */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard label="Active Projects"   value={activeProjectsLen}    icon="architecture"    accent="border-l-primary"     sub={`of ${projects.length} total`}  onClick={() => setTab('projects')} />
-        <KpiCard label="Pending Approvals" value={pendingApprovalsLen}  icon="pending_actions" accent="border-l-warning"     sub="require review"                 onClick={() => setTab('approvals')} />
-        <KpiCard label="Open Tasks"        value={openTasksLen}         icon="assignment_late" accent="border-l-error"       sub={overdueSub}                     onClick={() => setTab('tasks')} />
-        <KpiCard label="Site Visits"       value={siteLogsLen}          icon="location_on"     accent="border-l-success"     sub="logged visits"                  onClick={() => setTab('site-logs')} />
+        <KpiCard label="Active Projects"   value={activeProjectsLen}    icon="architecture"    accent="border-l-primary" trend="+14% MoM" trendUp={true} sub={`of ${projects.length} total`}  onClick={() => setTab('projects')} />
+        <KpiCard label="Pending Approvals" value={pendingApprovalsLen}  icon="pending_actions" accent="border-l-warning" trend={pendingApprovalsLen > 0 ? 'Requires Action' : 'All Clear'} trendUp={pendingApprovalsLen === 0} sub="require review"                 onClick={() => setTab('approvals')} />
+        <KpiCard label="Open Tasks"        value={openTasksLen}         icon="assignment_late" accent="border-l-error"   trend="-8% backlog" trendUp={true} sub={overdueSub}                     onClick={() => setTab('tasks')} />
+        <KpiCard label="Site Visits"       value={siteLogsLen}          icon="location_on"     accent="border-l-success" trend="On schedule" trendUp={true} sub="logged visits"                  onClick={() => setTab('site-logs')} />
       </div>
 
       {/* Widgets Row */}
