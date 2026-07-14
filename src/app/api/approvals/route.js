@@ -15,7 +15,11 @@ export async function GET(request) {
 
     const allowedIds = await db.getAllowedProjectIds(tenantId, userId, role);
     const approvals = await db.getApprovals(tenantId);
-    const filteredApprovals = approvals.filter(a => a.drawings && allowedIds.includes(a.drawings.project_id));
+    const filteredApprovals = approvals.filter(a => {
+      if (role === 'admin' || role === 'architect') return true;
+      if (a.client_id === userId || a.submitted_by === userId) return true;
+      return a.drawings && allowedIds.includes(a.drawings.project_id);
+    });
     return NextResponse.json({ approvals: filteredApprovals });
   } catch (error) {
     console.error('Get Approvals API Error:', error);
@@ -38,7 +42,7 @@ export async function POST(request) {
       return NextResponse.json({ error: errorMsg, details: validation.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    const { drawing_id, client_id, comments } = validation.data;
+    const { drawing_id, client_id, comments, submission_notes, due_date } = validation.data;
 
     const drawing = await db.getDrawing(drawing_id);
     if (!drawing) {
@@ -49,23 +53,29 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized: Drawing belongs to another tenant.' }, { status: 403 });
     }
 
-    // Verify client belongs to this tenant too
+    // Verify target user belongs to this tenant
     const client = await db.getUser(client_id);
-    if (!client || client.tenant_id !== tenantId || client.role !== 'client') {
-      return NextResponse.json({ error: 'Unauthorized: Invalid client selected.' }, { status: 403 });
+    if (!client || client.tenant_id !== tenantId || !['client', 'admin', 'architect', 'staff'].includes(client.role)) {
+      return NextResponse.json({ error: 'Unauthorized: Invalid target user selected for approval review.' }, { status: 403 });
     }
+
+    const initialNotes = submission_notes || comments || 'Please review and approve the attached drawing.';
 
     const newApproval = await db.createApproval({
       drawing_id,
       client_id,
       status: 'pending',
-      comments: comments || 'Please review and approve the attached drawing.',
+      comments: initialNotes,
+      submission_notes: initialNotes,
+      due_date: due_date || null,
       submitted_by: userId
     });
 
-    // Log the approval request
+    // Log the approval request with rich metadata
     await logActivity(tenantId, userId, 'approval', newApproval.id, 'Approval Requested', {
-      drawingName: drawing.name
+      drawingName: drawing.name,
+      dueDate: due_date || null,
+      submissionNotes: initialNotes
     });
 
     // Notify the Client
@@ -73,7 +83,7 @@ export async function POST(request) {
       tenantId,
       client_id,
       'Drawing Approval Requested',
-      `Architect has submitted "${drawing.name}" for your approval and review.`,
+      `Architect has submitted "${drawing.name}" for your approval and review.${due_date ? ` (Due: ${due_date})` : ''}`,
       'approval_request'
     );
 

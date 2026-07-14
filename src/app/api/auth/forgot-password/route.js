@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/backend/db/client';
+import { db, supabase } from '@/backend/db/client';
 import { generateResetToken } from '@/backend/utils/auth';
 import { emailService } from '@/backend/services/gmail';
 import { logActivity } from '@/backend/services/logger';
@@ -29,37 +29,54 @@ export async function POST(request) {
       console.log(`[Forgot Password] Request for non-existent or inactive user: ${normalizedEmail}`);
       return NextResponse.json({
         success: true,
-        message: 'If an account with that email exists, a password reset link has been sent.'
+        message: 'If an account with that email exists, a verification code and reset link have been sent.'
       });
     }
 
-    // 2. Generate a 15-minute reset token
+    // 2. Generate 6-digit OTP code and 15-minute expiration
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    // Store OTP inside users table if columns exist (graceful fallback if migration pending)
+    const { error: dbUpdateErr } = await supabase
+      .from('users')
+      .update({ reset_otp: otp, reset_otp_expires_at: expiresAt })
+      .eq('id', user.id);
+
+    if (dbUpdateErr) {
+      console.warn('[Forgot Password] Note: reset_otp table column update skipped or missing migration:', dbUpdateErr.message);
+    }
+
+    // Also generate a 15-minute reset token containing the OTP
     const token = generateResetToken({
       user_id: user.id,
       company_id: user.tenant_id,
       email: user.email,
+      otp,
       purpose: 'forgot_password_reset'
     });
 
     const resetUrl = `${SITE_URL}?tab=reset-password&token=${token}`;
 
-    // 3. Send the password reset email
-    await sendResetEmail(user.email, resetUrl);
+    // 3. Send the password reset email (including OTP box + button)
+    await sendResetEmail(user.email, resetUrl, otp);
 
     // 4. Log activity
     try {
       await logActivity(user.tenant_id, user.id, 'auth', user.id, 'Password Reset Requested', {
-        email: user.email
+        email: user.email,
+        otp_sent: true
       });
     } catch (logErr) {
       console.warn('Logging password reset request failed:', logErr.message);
     }
 
-    console.log(`[Forgot Password] Generated reset token for ${user.email}`);
+    console.log(`[Forgot Password] Generated OTP and reset token for ${user.email}`);
 
     return NextResponse.json({
       success: true,
-      message: 'If an account with that email exists, a password reset link has been sent.'
+      message: 'If an account with that email exists, a verification code and reset link have been sent.',
+      reset_token: token
     });
 
   } catch (error) {
@@ -71,8 +88,8 @@ export async function POST(request) {
   }
 }
 
-async function sendResetEmail(email, resetUrl) {
-  const result = await emailService.sendPasswordResetEmail(email, resetUrl);
+async function sendResetEmail(email, resetUrl, otp) {
+  const result = await emailService.sendPasswordResetEmail(email, resetUrl, otp);
   if (result?.success && !result?.mock) {
     console.log(`[Forgot Password] Reset email sent to ${email}`);
   }

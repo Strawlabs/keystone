@@ -24,7 +24,11 @@ export async function GET(request) {
     }
 
     const drawings = await db.getDrawings(tenantId, projectId, { search, sort, category });
-    const filteredDrawings = drawings.filter(d => allowedIds.includes(d.project_id));
+    const filteredDrawings = drawings.filter(d => {
+      if (role === 'admin' || role === 'architect') return true;
+      if (d.uploaded_by === userId) return true;
+      return allowedIds.includes(d.project_id);
+    });
     return NextResponse.json({ drawings: filteredDrawings });
   } catch (error) {
     console.error('Get Drawings API Error:', error);

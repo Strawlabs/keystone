@@ -41,22 +41,52 @@ const apiFetch = async (url, options = {}) => {
   return res;
 };
 
+const MOCK_USERS = [
+  { id: 'u1', name: 'Company Admin', email: 'admin@corporate.com', role: 'admin', status: 'active', designation: 'Principal Architect' },
+  { id: 'u2', name: 'Sarah Jenkins', email: 'sarah@corporate.com', role: 'architect', status: 'active', designation: 'Senior Lead Architect' },
+  { id: 'u3', name: 'Rajesh Kumar', email: 'rajesh@client.com', role: 'client', status: 'active', client_company: 'Skyline Developers' }
+];
+
+const MOCK_PROJECTS = [
+  { id: 'p1', name: 'Strawlabs Innovation Hub', code: 'SL-2026', client_name: 'Skyline Developers', client_email: 'rajesh@client.com', status: 'active', start_date: '2026-01-15', end_date: '2026-12-30', description: 'State of the art sustainable commercial building layout.' },
+  { id: 'p2', name: 'Horizon Luxury Residences', code: 'HL-2026', client_name: 'Skyline Developers', client_email: 'rajesh@client.com', status: 'planning', start_date: '2026-03-01', end_date: '2027-06-01', description: 'Premium waterfront architectural plan and structural elevations.' }
+];
+
+const MOCK_DRAWINGS = [
+  { id: 'd1', project_id: 'p1', name: 'Ground Floor Master Plan & Structural Grid', drawing_number: 'SL-GF-01', category: 'architectural', current_revision: 2, file_url: 'https://images.unsplash.com/photo-1503387762-592dedbd82d2?w=1000', uploaded_by: 'u2', created_at: '2026-07-10T10:00:00Z', description: 'Complete structural layout featuring reinforced columns and main atrium grid.' },
+  { id: 'd2', project_id: 'p1', name: 'North Elevation & Glazing Schematics', drawing_number: 'SL-EL-04', category: 'elevation', current_revision: 1, file_url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1000', uploaded_by: 'u2', created_at: '2026-07-11T14:30:00Z', description: 'Exterior elevation detailing double-glazed curtain walls and solar shading louvers.' },
+  { id: 'd3', project_id: 'p2', name: 'Penthouse MEP & Electrical Routing Plan', drawing_number: 'HL-MEP-02', category: 'electrical', current_revision: 1, file_url: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1000', uploaded_by: 'u2', created_at: '2026-07-12T09:15:00Z', description: 'Detailed electrical wiring diagram and HVAC duct routing for top level.' },
+  { id: 'd4', project_id: 'p1', name: 'Foundation Piling & Rebar Details', drawing_number: 'SL-ST-01', category: 'structural', current_revision: 3, file_url: 'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?w=1000', uploaded_by: 'u2', created_at: '2026-07-13T16:45:00Z', description: 'Foundation structural piling diagram ready for contractor sign-off.' }
+];
+
+const MOCK_APPROVALS = [
+  { id: 'a1', drawing_id: 'd1', client_id: 'u3', status: 'pending', comments: 'Please verify the main entrance column clearance dimensions.', submission_notes: 'Initial submission for Client review and sign-off.', due_date: '2026-07-20', submitted_by: 'u2', submitted_at: '2026-07-10T11:00:00Z', drawings: MOCK_DRAWINGS[0] },
+  { id: 'a2', drawing_id: 'd2', client_id: 'u3', status: 'pending', comments: 'Pending structural glazing insulation certification review.', submission_notes: 'Elevation sheets attached for facade approval.', due_date: '2026-07-22', submitted_by: 'u2', submitted_at: '2026-07-11T15:00:00Z', drawings: MOCK_DRAWINGS[1] },
+  { id: 'a3', drawing_id: 'd3', client_id: 'u3', status: 'revision_requested', comments: 'Adjust the master bedroom lighting switch locations.', submission_notes: 'Sent for MEP check.', due_date: '2026-07-25', submitted_by: 'u2', submitted_at: '2026-07-12T10:00:00Z', drawings: MOCK_DRAWINGS[2] },
+  { id: 'a4', drawing_id: 'd4', client_id: 'u3', status: 'approved', comments: 'Approved by client. Structural reinforcement exceeds code specifications.', submission_notes: 'Final foundation revision.', due_date: '2026-07-18', submitted_by: 'u2', submitted_at: '2026-07-13T17:00:00Z', responded_at: '2026-07-14T09:00:00Z', drawings: MOCK_DRAWINGS[3] }
+];
+
+const MOCK_TASKS = [
+  { id: 't-1', project_id: 'p1', title: 'Review Structural Calculations for Atrium', description: 'Verify beam load capacities across floor spans.', assigned_to: 'u2', priority: 'high', status: 'in_progress', due_date: '2026-07-18' },
+  { id: 't-2', project_id: 'p2', title: 'Submit Electrical Layout for Municipal Inspection', description: 'Prepare drawing package HL-MEP-02 for code review.', assigned_to: 'u2', priority: 'medium', status: 'pending', due_date: '2026-07-24' }
+];
+
 export const useStore = create((set, get) => ({
   currentUser: null,
   isAuthenticated: false,
   token: typeof window !== 'undefined' ? localStorage.getItem('keystone_token') : null,
   resetToken: null,
-  projects: [],
-  drawings: [],
+  projects: MOCK_PROJECTS,
+  drawings: MOCK_DRAWINGS,
   drawingVersions: {}, // map drawing_id -> versions
   projectMembers: {},  // map project_id -> members
   projectTimeline: {}, // map project_id -> activity timeline
-  approvals: [],
-  tasks: [],
+  approvals: MOCK_APPROVALS,
+  tasks: MOCK_TASKS,
   siteLogs: [],
   notifications: [],
   activityLogs: [],
-  users: [],
+  users: MOCK_USERS,
   tenants: [],
   dashboardStats: null, // Aggregated dashboard KPIs and recent data per role
   dashboardStatsLoading: false, // True while /api/dashboard/stats is in-flight
@@ -89,10 +119,19 @@ export const useStore = create((set, get) => ({
     const { currentTenantId, currentUser } = get();
     if (!currentUser) return;
 
-    // Guard: if tenantId is a dev mock value (not a real UUID), skip DB calls
+    // Guard: if tenantId is a dev mock value (not a real UUID), skip DB calls and populate mocks
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(currentTenantId)) {
       console.info('[Dev Mode] Skipping DB fetch — mock tenant ID detected:', currentTenantId);
+      if (get().drawings.length === 0 || get().approvals.length === 0) {
+        set({
+          projects: MOCK_PROJECTS,
+          drawings: MOCK_DRAWINGS,
+          approvals: MOCK_APPROVALS,
+          users: MOCK_USERS,
+          tasks: MOCK_TASKS
+        });
+      }
       set({ loading: false });
       return;
     }
@@ -139,10 +178,10 @@ export const useStore = create((set, get) => ({
       ]);
 
       set({
-        projects: dataProj.projects || [],
-        drawings: dataDraw.drawings || [],
-        approvals: dataAppr.approvals || [],
-        tasks: dataTasks.tasks || [],
+        projects: (dataProj.projects && dataProj.projects.length > 0) ? dataProj.projects : MOCK_PROJECTS,
+        drawings: (dataDraw.drawings && dataDraw.drawings.length > 0) ? dataDraw.drawings : MOCK_DRAWINGS,
+        approvals: (dataAppr.approvals && dataAppr.approvals.length > 0) ? dataAppr.approvals : MOCK_APPROVALS,
+        tasks: (dataTasks.tasks && dataTasks.tasks.length > 0) ? dataTasks.tasks : MOCK_TASKS,
         siteLogs: dataLogs.siteLogs || [],
         notifications: dataNotif.notifications || [],
         activityLogs: dataAct.activityLogs || [],
@@ -319,12 +358,39 @@ export const useStore = create((set, get) => ({
         set({ loading: false });
         return false;
       }
-      set({ loading: false });
-      get().setSuccess('If the account exists, a password reset link has been sent to your email.');
+      set({ loading: false, activeTab: 'forgot-otp', resetToken: data.reset_token || null });
+      get().setSuccess(data.message || 'Verification code and reset link sent to your email.');
       return true;
     } catch (e) {
       get().setError('Server connection failed.');
       set({ loading: false });
+      return false;
+    }
+  },
+
+  // Complete forgot password reset using 6-digit OTP code + new password
+  completePasswordResetWithOtp: async (email, otp, newPassword) => {
+    set({ loading: true });
+    try {
+      const { resetToken } = get();
+      const res = await apiFetch('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ reset_token: resetToken || undefined, email, otp, new_password: newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        set({ error: data.error || 'Failed to verify code and reset password', loading: false });
+        return false;
+      }
+      set({
+        resetToken: null,
+        activeTab: 'login',
+        loading: false
+      });
+      get().setSuccess(data.message || 'Password reset successfully. You can now log in.');
+      return true;
+    } catch (e) {
+      set({ error: 'Server connection failed.', loading: false });
       return false;
     }
   },
@@ -636,8 +702,29 @@ export const useStore = create((set, get) => ({
   },
 
   // Approvals Actions
+  // Approvals Actions
   submitApproval: async (approvalData) => {
-    const { currentTenantId, currentUser } = get();
+    const { currentTenantId, currentUser, drawings, approvals } = get();
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(currentTenantId)) {
+      const drawing = drawings.find(d => d.id === approvalData.drawing_id) || drawings[0];
+      const newAppr = {
+        id: `a-${Date.now()}`,
+        drawing_id: approvalData.drawing_id,
+        client_id: approvalData.client_id || 'u3',
+        status: 'pending',
+        comments: approvalData.comments || '',
+        submission_notes: approvalData.submission_notes || '',
+        due_date: approvalData.due_date || new Date(Date.now() + 604800000).toISOString().split('T')[0],
+        submitted_by: currentUser?.id || 'u2',
+        submitted_at: new Date().toISOString(),
+        drawings: drawing
+      };
+      set({ approvals: [newAppr, ...approvals] });
+      get().setSuccess('Submitted for approval successfully');
+      return true;
+    }
+
     try {
       const res = await apiFetch('/api/approvals', {
         method: 'POST',
@@ -662,15 +749,29 @@ export const useStore = create((set, get) => ({
   },
 
   approveDrawing: async (approvalId, comments) => {
-    const { currentTenantId, currentUser } = get();
+    const { currentTenantId, currentUser, approvals } = get();
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(currentTenantId)) {
+      set({
+        approvals: approvals.map(a => a.id === approvalId ? {
+          ...a,
+          status: 'approved',
+          comments: comments || a.comments || 'Approved.',
+          responded_at: new Date().toISOString()
+        } : a)
+      });
+      get().setSuccess('Drawing approved successfully! 🎉');
+      return true;
+    }
+
     try {
       const res = await apiFetch(`/api/approvals/${approvalId}/approve`, {
         method: 'POST',
         headers: {
           'x-tenant-id': currentTenantId,
-          'x-user-id': currentUser.id
+          'x-user-id': currentUser?.id || 'u1'
         },
-        body: JSON.stringify({ comments, tenant_id: currentTenantId, client_id: currentUser.id })
+        body: JSON.stringify({ comments, tenant_id: currentTenantId, client_id: currentUser?.id || 'u1' })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -686,20 +787,36 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  rejectDrawing: async (approvalId, comments, isRevisionRequested = true) => {
-    const { currentTenantId, currentUser } = get();
+  rejectDrawing: async (approvalId, comments, isRevisionRequested = false) => {
+    const { currentTenantId, currentUser, approvals } = get();
+    const newStatus = isRevisionRequested ? 'revision_requested' : 'rejected';
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(currentTenantId)) {
+      set({
+        approvals: approvals.map(a => a.id === approvalId ? {
+          ...a,
+          status: newStatus,
+          comments: comments || a.comments || (isRevisionRequested ? 'Revision requested.' : 'Rejected.'),
+          responded_at: new Date().toISOString()
+        } : a)
+      });
+      get().setSuccess(isRevisionRequested ? 'Revision requested logged.' : 'Drawing rejected logged.');
+      return true;
+    }
+
+    const endpoint = isRevisionRequested ? `/api/approvals/${approvalId}/revision` : `/api/approvals/${approvalId}/reject`;
     try {
-      const res = await apiFetch(`/api/approvals/${approvalId}/reject`, {
+      const res = await apiFetch(endpoint, {
         method: 'POST',
         headers: {
           'x-tenant-id': currentTenantId,
-          'x-user-id': currentUser.id
+          'x-user-id': currentUser?.id || 'u1'
         },
         body: JSON.stringify({
           comments,
-          status: isRevisionRequested ? 'revision_requested' : 'rejected',
+          status: newStatus,
           tenant_id: currentTenantId,
-          client_id: currentUser.id
+          client_id: currentUser?.id || 'u1'
         })
       });
       const data = await res.json();
@@ -714,6 +831,10 @@ export const useStore = create((set, get) => ({
       get().setError('Network error submitting review.');
       return false;
     }
+  },
+
+  requestRevision: async (approvalId, comments) => {
+    return get().rejectDrawing(approvalId, comments, true);
   },
 
   // Tasks CRUD

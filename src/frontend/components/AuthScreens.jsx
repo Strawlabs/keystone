@@ -31,12 +31,14 @@ export default function AuthScreens({
   const resendOtp = useStore((state) => state.resendOtp);
   const changePasswordWithToken = useStore((state) => state.changePasswordWithToken);
   const completePasswordReset = useStore((state) => state.completePasswordReset);
+  const completePasswordResetWithOtp = useStore((state) => state.completePasswordResetWithOtp);
 
   // States for companies list and custom flows
   const [companies, setCompanies] = useState([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [forgotOtpCode, setForgotOtpCode] = useState('');
 
   // Fetch companies list
   useEffect(() => {
@@ -89,6 +91,28 @@ export default function AuthScreens({
     }
     const ok = await completePasswordReset(newPassword);
     if (ok) {
+      setNewPassword('');
+      setConfirmNewPassword('');
+    }
+  };
+
+  const handleForgotOtpSubmit = async (e) => {
+    e.preventDefault();
+    if (!forgotOtpCode || forgotOtpCode.trim().length !== 6) {
+      setError('Please enter a valid 6-digit verification code.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    const ok = await completePasswordResetWithOtp(forgotEmail, forgotOtpCode.trim(), newPassword);
+    if (ok) {
+      setForgotOtpCode('');
       setNewPassword('');
       setConfirmNewPassword('');
     }
@@ -721,7 +745,111 @@ export default function AuthScreens({
                     type="submit"
                     className="w-full bg-primary hover:bg-primary-container text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] cursor-pointer shadow-sm"
                   >
-                    Send Reset Email Link
+                    Send Verification Code & Link
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 3b. FORGOT PASSWORD OTP VERIFICATION VIEW */}
+          {activeTab === 'forgot-otp' && (
+            <div className="space-y-8 animate-fade-in">
+              <div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold mb-3">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  Verification Code Sent
+                </span>
+                <h1 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight mb-2">
+                  Verify & Reset Password
+                </h1>
+                <p className="text-body-lg text-secondary font-medium">
+                  We've sent a 6-digit verification code to <span className="font-bold text-ink-black">{forgotEmail}</span>. Enter the code along with your new password below.
+                </p>
+              </div>
+
+              <form onSubmit={handleForgotOtpSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    6-Digit Verification Code
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-[20px]">
+                      pin
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      value={forgotOtpCode}
+                      onChange={(e) => setForgotOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                      className="w-full bg-white border border-border-subtle rounded-lg py-3.5 pl-11 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-lg font-mono tracking-[0.3em] font-bold"
+                      placeholder="123456"
+                    />
+                  </div>
+                  <div className="flex justify-between items-center mt-2 text-xs">
+                    <span className="text-secondary">Check your inbox or spam folder</span>
+                    <button
+                      type="button"
+                      onClick={() => resetPassword(forgotEmail, selectedCompanyId || null)}
+                      disabled={loading}
+                      className="font-bold text-primary hover:underline cursor-pointer transition-all disabled:opacity-50"
+                    >
+                      Resend Code
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    New Permanent Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                    placeholder="At least 8 characters"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                    placeholder="Repeat new password"
+                  />
+                </div>
+
+                <div className="pt-2 flex flex-col gap-3">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-primary hover:bg-primary-container text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-elevated"
+                  >
+                    {loading && (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    )}
+                    <span>Verify Code & Save Password</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab('login');
+                      setError('');
+                    }}
+                    className="w-full text-center text-xs font-bold text-secondary hover:text-ink-black py-2 cursor-pointer transition-colors"
+                  >
+                    Back to Log In
                   </button>
                 </div>
               </form>
