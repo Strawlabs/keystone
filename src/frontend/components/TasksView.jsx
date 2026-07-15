@@ -61,7 +61,7 @@ export default function TasksView({
   const [viewMode, setViewMode] = useState('kanban'); // 'list' or 'kanban'
   const [editingTask, setEditingTask] = useState(null);
 
-  const canCreate = !isClient;
+  const canCreate = true; // Enabled for all roles
 
   // Single date parsed once per render
   const now = React.useMemo(() => new Date(), []);

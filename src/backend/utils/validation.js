@@ -99,5 +99,7 @@ export const getSignedUrlSchema = z.object({
 export const createApprovalSchema = z.object({
   drawing_id: z.string().uuid('Invalid Drawing ID.'),
   client_id: z.string().uuid('Invalid Client ID.'),
-  comments: z.string().optional()
+  comments: z.string().optional(),
+  submission_notes: z.string().optional(),
+  due_date: z.string().optional().or(z.null())
 });

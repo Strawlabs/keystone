@@ -63,10 +63,13 @@ export const emailService = {
   /**
    * Send a password reset email.
    */
-  sendPasswordResetEmail: async (email, resetUrl) => {
+  sendPasswordResetEmail: async (email, resetUrl, otp = null) => {
+    if (otp) {
+      console.log(`\n🔑 [Forgot Password OTP generated for ${email}]: ${otp}\n`);
+    }
     return sendEmail({
       to: email,
-      subject: 'Reset Your Keystone Password',
+      subject: 'Reset Your Keystone Password & Verification Code',
       html: `
         <div style="font-family:'Inter',-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:40px 24px;background:#0f172a;color:#e2e8f0;border-radius:16px;">
           <div style="text-align:center;margin-bottom:32px;">
@@ -76,15 +79,23 @@ export const emailService = {
           <p style="font-size:14px;line-height:1.6;color:#94a3b8;margin-bottom:24px;">
             We received a request to reset the password for your Keystone account
             (<strong style="color:#e2e8f0;">${email}</strong>).
-            Click the button below to set a new password.
           </p>
+          ${otp ? `
+          <div style="background:#1e293b;border:1px solid #334155;padding:20px;border-radius:14px;text-align:center;margin:24px 0;">
+            <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Your 6-Digit Verification Code</div>
+            <div style="font-size:32px;font-weight:800;color:#38bdf8;letter-spacing:8px;font-family:monospace;">${otp}</div>
+          </div>
+          <p style="font-size:13px;color:#94a3b8;text-align:center;margin-bottom:24px;">
+            Enter this code on the verification screen, or click the button below:
+          </p>
+          ` : ''}
           <div style="text-align:center;margin:32px 0;">
             <a href="${resetUrl}" style="display:inline-block;padding:14px 32px;background:#2563eb;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:12px;box-shadow:0 0 15px rgba(37,99,235,0.3);">
-              Reset Password
+              Reset Password Link
             </a>
           </div>
           <p style="font-size:12px;color:#64748b;line-height:1.5;">
-            This link is valid for 15 minutes. If you did not request a password reset, you can safely ignore this email.
+            This code and link are valid for 15 minutes. If you did not request a password reset, you can safely ignore this email.
           </p>
           <hr style="border:none;border-top:1px solid #1e293b;margin:24px 0;" />
           <p style="font-size:11px;color:#475569;text-align:center;">

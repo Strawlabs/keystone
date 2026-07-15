@@ -202,11 +202,33 @@ export const db = {
     if (taskError) throw taskError;
     const taskProjectIds = new Set(taskRows.map(t => t.project_id));
 
-    // Step 4: if client, get their email and check client_email
+    // Step 4: get projects linked via drawings or approvals
+    const { data: drawRows } = await supabase
+      .from('drawings')
+      .select('project_id')
+      .eq('tenant_id', tenantId)
+      .eq('uploaded_by', userId);
+    if (drawRows) {
+      drawRows.forEach(d => { if (d.project_id) memberProjectIds.add(d.project_id); });
+    }
+
+    const { data: apprRows } = await supabase
+      .from('approvals')
+      .select('drawings!inner(project_id, tenant_id)')
+      .or(`client_id.eq.${userId},submitted_by.eq.${userId}`);
+    if (apprRows) {
+      apprRows.forEach(a => {
+        if (a.drawings && a.drawings.tenant_id === tenantId && a.drawings.project_id) {
+          memberProjectIds.add(a.drawings.project_id);
+        }
+      });
+    }
+
+    // Step 5: if client, get their email and check client_email
     let clientEmail = '';
     if (role === 'client') {
       const user = await this.getUser(userId);
-      if (user) clientEmail = user.email;
+      if (user) clientEmail = (user.email || '').toLowerCase().trim();
     }
 
     const allowedIds = [];
@@ -214,7 +236,7 @@ export const db = {
       const isCreator = p.created_by === userId;
       const isMember = memberProjectIds.has(p.id);
       const hasTask = taskProjectIds.has(p.id);
-      const isClientMatch = role === 'client' && clientEmail && p.client_email === clientEmail;
+      const isClientMatch = role === 'client' && clientEmail && (p.client_email || '').toLowerCase().trim() === clientEmail;
 
       if (isCreator || isMember || hasTask || isClientMatch) {
         allowedIds.push(p.id);
@@ -326,19 +348,30 @@ export const db = {
   },
 
   async createDrawing(drawingData, initialRevisionNotes = 'Initial version.') {
-    const { data, error } = await supabase.from('drawings').insert([drawingData]).select().single();
+    const { revision_number, revision_notes, ...cleanDrawingData } = drawingData;
+    const initialRevNum = parseInt(revision_number) || cleanDrawingData.current_revision || 1;
+    const initialNotes = revision_notes || initialRevisionNotes || 'Initial version.';
+
+    const payload = {
+      ...cleanDrawingData,
+      current_revision: initialRevNum
+    };
+
+    const { data, error } = await supabase.from('drawings').insert([payload]).select().single();
     if (error) throw error;
 
     // Create initial drawing version record
     const { error: verError } = await supabase.from('drawing_versions').insert([{
       drawing_id: data.id,
-      revision_number: 1,
-      revision_notes: initialRevisionNotes,
+      revision_number: initialRevNum,
+      revision_notes: initialNotes,
       file_url: data.file_url,
       storage_path: data.storage_path || null,
       uploaded_by: data.uploaded_by
     }]);
-    if (verError) throw verError;
+    if (verError) {
+      console.warn('Initial drawing version insert warning:', verError.message);
+    }
 
     return data;
   },
@@ -351,7 +384,21 @@ export const db = {
       .single();
     if (drawingError) throw drawingError;
 
-    const nextRev = drawing.current_revision + 1;
+    // Ensure uniqueness across existing drawing_versions
+    const { data: existingVersions } = await supabase
+      .from('drawing_versions')
+      .select('revision_number')
+      .eq('drawing_id', drawingId);
+
+    let maxRev = drawing.current_revision || drawing.revision || 1;
+    if (existingVersions && existingVersions.length > 0) {
+      existingVersions.forEach(v => {
+        if (v.revision_number && v.revision_number >= maxRev) {
+          maxRev = v.revision_number;
+        }
+      });
+    }
+    const nextRev = maxRev + 1;
 
     // Insert new version record
     const { data: version, error: verError } = await supabase
@@ -405,21 +452,74 @@ export const db = {
     const { data, error } = await supabase
       .from('approvals')
       .select('*, drawings!inner(*)')
-      .eq('drawings.tenant_id', tenantId);
+      .eq('drawings.tenant_id', tenantId)
+      .order('submitted_at', { ascending: false });
     if (error) throw error;
-    return data;
+    return (data || []).map(a => {
+      let dueDate = null;
+      const dueMatch = typeof a.comments === 'string' && a.comments.match(/\[Due:\s*([^\]]+)\]/i);
+      if (dueMatch) dueDate = dueMatch[1].trim();
+      return {
+        ...a,
+        submission_notes: a.comments || '',
+        due_date: dueDate
+      };
+    });
   },
 
   async getApproval(id) {
     const { data, error } = await supabase.from('approvals').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
-    return data;
+    if (!data) return null;
+    let dueDate = null;
+    const dueMatch = typeof data.comments === 'string' && data.comments.match(/\[Due:\s*([^\]]+)\]/i);
+    if (dueMatch) dueDate = dueMatch[1].trim();
+    return {
+      ...data,
+      submission_notes: data.comments || '',
+      due_date: dueDate
+    };
   },
 
   async createApproval(approvalData) {
-    const { data, error } = await supabase.from('approvals').insert([approvalData]).select().single();
+    const {
+      id,
+      drawing_id,
+      client_id,
+      status,
+      comments,
+      submission_notes,
+      due_date,
+      submitted_by,
+      submitted_at,
+      responded_at,
+      ...extra
+    } = approvalData;
+
+    let finalComments = comments || submission_notes || 'Please review and approve the attached drawing.';
+    if (due_date && !finalComments.includes(`[Due: ${due_date}]`)) {
+      finalComments = `${finalComments} [Due: ${due_date}]`;
+    }
+
+    const payload = {
+      ...(id ? { id } : {}),
+      drawing_id,
+      client_id,
+      status: status || 'pending',
+      comments: finalComments,
+      submitted_by,
+      ...(submitted_at ? { submitted_at } : {}),
+      ...(responded_at ? { responded_at } : {})
+    };
+
+    const { data, error } = await supabase.from('approvals').insert([payload]).select().single();
     if (error) throw error;
-    return data;
+
+    return {
+      ...data,
+      submission_notes: submission_notes || data.comments,
+      due_date: due_date || null
+    };
   },
 
   async updateApprovalStatus(id, status, comments) {

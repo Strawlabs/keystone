@@ -155,7 +155,7 @@ export default function ProjectDetailView({
           { id: 'overview', label: 'Overview', icon: 'info' },
           { id: 'team', label: 'Studio Team', icon: 'group', roles: ['admin', 'architect', 'staff'] },
           { id: 'drawings', label: 'Drawings', icon: 'description' },
-          { id: 'tasks', label: 'Tasks', icon: 'assignment', roles: ['admin', 'architect', 'staff'] },
+          { id: 'tasks', label: 'Tasks', icon: 'assignment', roles: ['admin', 'architect', 'staff', 'client'] },
           { id: 'site-logs', label: 'Site Logs', icon: 'photo_camera', roles: ['admin', 'architect', 'staff'] },
           { id: 'approvals', label: 'Approvals', icon: 'approval', roles: ['admin', 'architect', 'client'] },
           { id: 'timeline', label: 'Activity', icon: 'history' },
@@ -495,15 +495,13 @@ export default function ProjectDetailView({
           <div className="space-y-4 animate-fade-in">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-ink-black text-body-lg">Project Tasks</h3>
-              {!isClient && (
-                <button
-                  onClick={() => setTab('tasks')}
-                  className="bg-primary text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-primary-container transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[16px]">add_task</span>
-                  Create Task
-                </button>
-              )}
+              <button
+                onClick={() => setTab('tasks')}
+                className="bg-primary text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-primary-container transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">add_task</span>
+                Create Task
+              </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -676,6 +674,8 @@ export default function ProjectDetailView({
             const submittedDate = new Date(a.submitted_at).toLocaleDateString('en-US', {
               month: 'short', day: 'numeric', year: 'numeric'
             });
+            const isOverdue = a.due_date && new Date(a.due_date) < new Date() && a.status === 'pending';
+
             return (
               <div key={a.id} className="bg-surface-container-lowest p-5 rounded-xl border border-border-subtle shadow-sm space-y-3">
                 <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -684,6 +684,11 @@ export default function ProjectDetailView({
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${approvalStatusStyles[a.status] || approvalStatusStyles.pending}`}>
                         {approvalStatusLabel[a.status] || a.status}
                       </span>
+                      {isOverdue && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-error text-white uppercase tracking-wider animate-pulse">
+                          Overdue
+                        </span>
+                      )}
                       <span className="text-label-sm text-secondary">Submitted {submittedDate}</span>
                     </div>
                     <p className="font-bold text-ink-black text-body-md">{drawing?.name || 'Drawing'}</p>
@@ -691,25 +696,50 @@ export default function ProjectDetailView({
                       #{drawing?.drawing_number || '—'} · {drawing?.category?.replace('_', ' ')}
                     </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      setSelectedDrawingId(a.drawing_id);
-                      setTab('blueprint-review');
-                    }}
-                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1 shrink-0 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                    View Drawing
-                  </button>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button
+                      onClick={() => {
+                        setSelectedDrawingId(a.drawing_id);
+                        setTab('blueprint-review');
+                      }}
+                      className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                      View Drawing
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedApprovalId?.(a.id);
+                        setTab('approvals');
+                      }}
+                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">history</span>
+                      Audit Trail & Details
+                    </button>
+                  </div>
                 </div>
-                {a.comments && (
-                  <div className="bg-surface-container-low p-3 rounded-lg border border-border-subtle text-[11px] text-secondary leading-relaxed">
-                    <span className="font-bold text-ink-black">Reviewer comment: </span>{a.comments}
+
+                {a.submission_notes && (
+                  <div className="bg-surface-container-low p-3 rounded-lg border border-border-subtle text-[11px] text-secondary italic leading-relaxed">
+                    <span className="font-bold not-italic text-primary block mb-0.5">Architect Notes: </span>"{a.submission_notes}"
                   </div>
                 )}
-                <div className="flex items-center gap-4 pt-2 border-t border-border-subtle/50 text-[10px] text-secondary">
+
+                {a.comments && a.comments !== a.submission_notes && (
+                  <div className="bg-surface-container-low p-3 rounded-lg border border-border-subtle text-[11px] text-secondary italic leading-relaxed">
+                    <span className="font-bold not-italic text-ink-black block mb-0.5">Reviewer comment: </span>"{a.comments}"
+                  </div>
+                )}
+
+                <div className="flex items-center gap-4 pt-2 border-t border-border-subtle/50 text-[10px] text-secondary flex-wrap">
                   <span>Client: <span className="font-bold text-ink-black">{client?.name || '—'}</span></span>
                   <span>Submitted by: <span className="font-bold text-ink-black">{submitter?.name || '—'}</span></span>
+                  {a.due_date && (
+                    <span className={isOverdue ? 'text-error font-bold' : ''}>
+                      Due Date: <span className="font-bold text-ink-black">{new Date(a.due_date).toLocaleDateString()}</span>
+                    </span>
+                  )}
                   {a.responded_at && (
                     <span>Responded: <span className="font-bold text-ink-black">{new Date(a.responded_at).toLocaleDateString()}</span></span>
                   )}

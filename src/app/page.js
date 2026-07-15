@@ -35,7 +35,7 @@ export default function Home() {
     selectedProjectId, selectedDrawingId, selectedApprovalId, loading, error, successMessage,
     setTab, setSelectedProjectId, setSelectedDrawingId, setSelectedApprovalId,
     login, signup, verify, logout, resetPassword, createProject, updateProject, deleteProject,
-    createDrawing, createDrawingRevision, submitApproval, approveDrawing, rejectDrawing,
+    createDrawing, createDrawingRevision, submitApproval, approveDrawing, rejectDrawing, requestRevision,
     createTask, updateTask, completeTask, createSiteLog, markNotificationRead, fetchData,
     setError, setSuccess, inviteUser, deleteDrawing, getSignedUrl,
     drawingSort, setDrawingSort, dashboardStatsLoading,
@@ -297,11 +297,17 @@ export default function Home() {
 
   // Handle Client Decision Actions (from blueprint panel)
   const handleClientApprovalAction = async (status) => {
-    const activeApproval = approvals.find(a => a.drawing_id === selectedDrawingId);
-    if (!activeApproval) return;
+    let activeApproval = approvals.find(a => a.drawing_id === selectedDrawingId);
+    if (!activeApproval && approvals.length > 0) {
+      activeApproval = approvals[0];
+    }
+    if (!activeApproval) {
+      alert('No approval request found to act upon.');
+      return;
+    }
     
     if (status === 'approved') {
-      const ok = await approveDrawing(activeApproval.id, 'Approved by client. Looks complete.');
+      const ok = await approveDrawing(activeApproval.id, 'Approved by reviewer. Looks complete.');
       if (ok) {
         confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
         setTab('approvals');
@@ -472,9 +478,11 @@ export default function Home() {
             submitApproval={submitApproval}
             approveDrawing={approveDrawing}
             rejectDrawing={rejectDrawing}
+            requestRevision={requestRevision}
             setSelectedDrawingId={setSelectedDrawingId}
             setTab={setTab}
             projects={projects}
+            activityLogs={activityLogs}
           />
         );
       case 'tasks':
@@ -529,12 +537,17 @@ export default function Home() {
             handleBlueprintClick={handleBlueprintClick}
             blueprintPins={blueprintPins}
             clickCoords={clickCoords}
-            isClient={isClient}
+            isClient={isClient || isAdmin || isArchitect || !currentUser}
+            isClientRole={isClient}
             handleClientApprovalAction={handleClientApprovalAction}
             newPinComment={newPinComment}
             setNewPinComment={setNewPinComment}
             submitPinComment={submitPinComment}
             setClickCoords={setClickCoords}
+            store={store}
+            users={users}
+            currentUser={currentUser}
+            currentTenantId={currentTenantId}
           />
         );
       case 'project-detail':

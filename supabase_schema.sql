@@ -108,6 +108,8 @@ create table public.approvals (
     client_id uuid not null references public.users(id) on delete cascade,
     status text not null check (status in ('pending', 'approved', 'rejected', 'revision_requested')) default 'pending',
     comments text,
+    submission_notes text,
+    due_date date,
     submitted_by uuid references public.users(id) on delete set null,
     submitted_at timestamp with time zone default timezone('utc'::text, now()) not null,
     responded_at timestamp with time zone
@@ -270,4 +272,6 @@ alter table public.users add column if not exists password_hash text;
 alter table public.users add column if not exists needs_password_change boolean default true;
 alter table public.users add column if not exists created_by uuid references public.users(id) on delete set null;
 alter table public.users add column if not exists last_login timestamp with time zone;
+alter table public.users add column if not exists reset_otp text;
+alter table public.users add column if not exists reset_otp_expires_at timestamp with time zone;
 

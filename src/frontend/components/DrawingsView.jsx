@@ -103,7 +103,8 @@ export default function DrawingsView({
   const canDelete = currentUser?.role === 'admin' || currentUser?.role === 'architect';
   const canSubmitApproval = currentUser?.role === 'admin' || currentUser?.role === 'architect';
 
-  const clients = (users || []).filter(u => u.role === 'client');
+  const clientUsers = (users || []).filter(u => u.role === 'client');
+  const clients = clientUsers.length > 0 ? clientUsers : (users || []);
 
   const handleQuickSubmitApproval = async (drawingId) => {
     if (clients.length === 0) {
@@ -361,10 +362,13 @@ export default function DrawingsView({
                 <div className="relative aspect-[4/3] bg-surface-container-high overflow-hidden flex items-center justify-center blueprint-grid">
                   {renderFileThumb(d)}
 
-                  {/* Rev Corner badge */}
-                  <div className="absolute top-3 left-3">
-                    <span className="px-2 py-1 bg-ink-black/80 text-white text-[10px] font-bold rounded backdrop-blur-sm uppercase tracking-wider font-mono">
+                  {/* Rev Corner badge clearly indicating current/latest version */}
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                    <span className="px-2 py-1 bg-ink-black/85 text-white text-[10px] font-bold rounded backdrop-blur-sm uppercase tracking-wider font-mono shadow">
                       Rev {d.current_revision || d.revision || 1}
+                    </span>
+                    <span className="px-1.5 py-0.5 bg-emerald-500/90 text-white text-[9px] font-extrabold rounded backdrop-blur-sm uppercase tracking-wider shadow">
+                      Latest
                     </span>
                   </div>
 
@@ -514,7 +518,12 @@ export default function DrawingsView({
                         </span>
                       </td>
                       <td className="px-6 py-4 font-semibold text-body-md text-secondary font-mono">
-                        Rev {d.current_revision || d.revision || 1}
+                        <div className="flex items-center gap-2">
+                          <span>Rev {d.current_revision || d.revision || 1}</span>
+                          <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 rounded text-[9px] font-extrabold uppercase tracking-wider">
+                            Current
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
