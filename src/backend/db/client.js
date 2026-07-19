@@ -556,22 +556,85 @@ export const db = {
 
   // ---- SITE LOGS ----
   async getSiteLogs(tenantId, projectId = null) {
-    let query = supabase.from('site_logs').select('*, site_log_photos(*)').eq('tenant_id', tenantId);
+    let query = supabase
+      .from('site_logs')
+      .select('*, site_log_photos(*), users:created_by(name, email, role, avatar_url)')
+      .eq('tenant_id', tenantId);
     if (projectId) query = query.eq('project_id', projectId);
-    const { data, error } = await query;
+    
+    const { data, error } = await query.order('visit_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false });
+    
+    if (error && (error.code === '42703' || error.message?.includes('visit_date') || error.message?.includes('column'))) {
+      let fallbackQuery = supabase
+        .from('site_logs')
+        .select('*, site_log_photos(*)')
+        .eq('tenant_id', tenantId);
+      if (projectId) fallbackQuery = fallbackQuery.eq('project_id', projectId);
+      const { data: fallbackData, error: fallbackError } = await fallbackQuery.order('created_at', { ascending: false });
+      if (fallbackError) throw fallbackError;
+
+      const processedFallback = (fallbackData || []).map(log => {
+        const photoUrls = log.photos || (log.site_log_photos ? log.site_log_photos.map(p => typeof p === 'string' ? p : p.image_url) : []);
+        return {
+          ...log,
+          created_by_name: log.created_by_name || 'Site Engineer',
+          photos: photoUrls,
+          site_log_photos: log.site_log_photos || photoUrls.map((url, idx) => ({ id: `photo-${idx}`, image_url: url }))
+        };
+      });
+      processedFallback.sort((a, b) => new Date(b.visit_date || b.created_at || 0) - new Date(a.visit_date || a.created_at || 0));
+      return processedFallback;
+    }
+
     if (error) throw error;
-    return data;
+
+    const processed = (data || []).map(log => {
+      const photoUrls = log.photos || (log.site_log_photos ? log.site_log_photos.map(p => typeof p === 'string' ? p : p.image_url) : []);
+      const createdByName = log.created_by_name || (log.users ? log.users.name : 'Site Engineer');
+      return {
+        ...log,
+        created_by_name: createdByName,
+        photos: photoUrls,
+        site_log_photos: log.site_log_photos || photoUrls.map((url, idx) => ({ id: `photo-${idx}`, image_url: url }))
+      };
+    });
+
+    processed.sort((a, b) => {
+      const timeA = new Date(a.visit_date || a.created_at || 0).getTime();
+      const timeB = new Date(b.visit_date || b.created_at || 0).getTime();
+      return timeB - timeA;
+    });
+
+    return processed;
   },
 
   async createSiteLog(logData, photoUrls = []) {
-    const { data: log, error: logError } = await supabase.from('site_logs').insert([logData]).select().single();
-    if (logError) throw logError;
+    let log = null;
+    const { data, error: logError } = await supabase.from('site_logs').insert([logData]).select().single();
+    
+    if (logError && (logError.code === 'PGRST204' || logError.code === '42703' || logError.message?.includes('column') || logError.message?.includes('schema cache'))) {
+      const baseData = {
+        project_id: logData.project_id,
+        tenant_id: logData.tenant_id,
+        notes: logData.notes,
+        created_by: logData.created_by
+      };
+      const { data: fallbackLog, error: fallbackError } = await supabase.from('site_logs').insert([baseData]).select().single();
+      if (fallbackError) throw fallbackError;
+      log = { ...fallbackLog, ...logData, id: fallbackLog.id };
+    } else if (logError) {
+      throw logError;
+    } else {
+      log = data;
+    }
 
     if (photoUrls.length > 0) {
       const photoInserts = photoUrls.map(url => ({ site_log_id: log.id, image_url: url }));
       const { error: photoError } = await supabase.from('site_log_photos').insert(photoInserts);
       if (photoError) throw photoError;
     }
+    log.photos = photoUrls;
+    log.site_log_photos = photoUrls.map((url, idx) => ({ id: `new-photo-${idx}`, site_log_id: log.id, image_url: url }));
     return log;
   },
 

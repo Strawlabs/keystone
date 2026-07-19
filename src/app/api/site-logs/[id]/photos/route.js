@@ -8,7 +8,7 @@ export async function POST(request, { params }) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId } = auth;
+    const { tenantId, userId, role } = auth;
     const { id } = await params;
 
     const body = await request.json();
@@ -20,10 +20,17 @@ export async function POST(request, { params }) {
 
     // Check if site log exists and matches tenant
     const siteLogs = await db.getSiteLogs(tenantId);
-    const logExists = siteLogs.some(l => l.id === id);
+    const log = siteLogs.find(l => l.id === id);
 
-    if (!logExists) {
+    if (!log) {
       return NextResponse.json({ error: 'Site log not found or unauthorized.' }, { status: 404 });
+    }
+
+    if (role !== 'admin') {
+      const allowedIds = await db.getAllowedProjectIds(tenantId, userId, role);
+      if (log.project_id && !allowedIds.includes(log.project_id) && log.created_by !== userId) {
+        return NextResponse.json({ error: 'Unauthorized: You do not have permission to add photos to this site log.' }, { status: 403 });
+      }
     }
 
     // Insert photos directly into Supabase site_log_photos

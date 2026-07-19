@@ -15,12 +15,14 @@ export async function GET(request) {
     const projectId = searchParams.get('projectId');
 
     const allowedIds = await db.getAllowedProjectIds(tenantId, userId, role);
-    if (projectId && !allowedIds.includes(projectId)) {
+    if (projectId && role !== 'admin' && !allowedIds.includes(projectId)) {
       return NextResponse.json({ siteLogs: [] });
     }
 
     const siteLogs = await db.getSiteLogs(tenantId, projectId);
-    const filteredLogs = siteLogs.filter(s => allowedIds.includes(s.project_id));
+    const filteredLogs = role === 'admin'
+      ? siteLogs
+      : siteLogs.filter(s => !s.project_id || allowedIds.includes(s.project_id) || s.created_by === userId);
     return NextResponse.json({ siteLogs: filteredLogs });
   } catch (error) {
     console.error('Get Site Logs API Error:', error);
@@ -34,7 +36,7 @@ export async function POST(request) {
     if (!auth.isAuthenticated) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const { tenantId, userId } = auth;
+    const { tenantId, userId, role } = auth;
 
     const body = await request.json();
     const validation = createSiteLogSchema.safeParse(body);
@@ -43,7 +45,8 @@ export async function POST(request) {
       return NextResponse.json({ error: errorMsg, details: validation.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    const { project_id, notes, photos } = body;
+    const { project_id, notes } = validation.data;
+    const photos = body.photos;
 
     // Verify project belongs to tenant
     const project = await db.getProject(project_id);
@@ -54,12 +57,25 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized: Project belongs to another tenant.' }, { status: 403 });
     }
 
+    // Role-based project permission check (Staff / Architect can only create logs for assigned projects)
+    if (role !== 'admin') {
+      const allowedIds = await db.getAllowedProjectIds(tenantId, userId, role);
+      if (!allowedIds.includes(project_id)) {
+        return NextResponse.json({ error: 'Unauthorized: You do not have permission to create site logs for this assigned project.' }, { status: 403 });
+      }
+    }
+
     const photoUrls = photos || [];
 
     const newLog = await db.createSiteLog({
       project_id,
       tenant_id: tenantId,
       notes,
+      site_status: validation.data.site_status || 'active',
+      visit_date: validation.data.visit_date || new Date().toISOString(),
+      location: validation.data.location || null,
+      weather: validation.data.weather || null,
+      workers_count: validation.data.workers_count !== undefined ? validation.data.workers_count : null,
       created_by: userId
     }, photoUrls);
 
@@ -72,6 +88,10 @@ export async function POST(request) {
     return NextResponse.json({ message: 'Site log created successfully', siteLog: newLog });
   } catch (error) {
     console.error('Create Site Log API Error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({
+      error: error.message || 'Internal server error',
+      code: error.code || undefined,
+      details: error.details || error.hint || undefined
+    }, { status: 500 });
   }
 }

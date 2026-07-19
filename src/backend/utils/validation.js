@@ -55,7 +55,11 @@ export const updateTaskSchema = createTaskSchema.partial().extend({
 export const createSiteLogSchema = z.object({
   project_id: z.string().uuid('Invalid Project ID.'),
   notes: z.string().min(1, 'Site log notes are required.'),
-  site_status: z.string().optional()
+  site_status: z.string().optional(),
+  visit_date: z.string().optional().or(z.null()),
+  location: z.string().optional().or(z.null()),
+  weather: z.string().optional().or(z.null()),
+  workers_count: z.union([z.number(), z.string()]).optional().transform(v => (v === undefined || v === '' || v === null ? null : Number(v)))
 });
 
 // Create drawing

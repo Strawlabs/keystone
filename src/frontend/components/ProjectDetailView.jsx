@@ -24,11 +24,14 @@ export default function ProjectDetailView({
   setSelectedApprovalId,
   siteLogs = [],
   approvals = [],
+  setShowSiteLogModal,
+  setNewLog,
 }) {
   const [activeSubTab, setActiveSubTab] = useState('overview'); // overview, team, drawings, tasks, site-logs, approvals, timeline
   const [selectedUserToAdd, setSelectedUserToAdd] = useState('');
   const [selectedRoleForAdd, setSelectedRoleForAdd] = useState('staff');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
 
   if (!project) {
     return (
@@ -581,13 +584,22 @@ export default function ProjectDetailView({
 
         {/* SITE LOGS TAB */}
         {activeSubTab === 'site-logs' && (() => {
-          const projectSiteLogs = siteLogs.filter(l => l.project_id === project.id);
+          const projectSiteLogs = siteLogs
+            .filter(l => l.project_id === project.id)
+            .sort((a, b) => new Date(b.visit_date || b.created_at || 0) - new Date(a.visit_date || a.created_at || 0));
           return (
             <div className="space-y-4 animate-fade-in">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-ink-black text-body-lg">Site Visit Logs</h3>
                 <button
-                  onClick={() => setTab('site-logs')}
+                  onClick={() => {
+                    if (setShowSiteLogModal && setNewLog) {
+                      setNewLog(prev => ({ ...prev, project_id: project.id }));
+                      setShowSiteLogModal(true);
+                    } else {
+                      setTab('site-logs');
+                    }
+                  }}
                   className="bg-primary text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-primary-container transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[16px]">add</span>
@@ -604,7 +616,8 @@ export default function ProjectDetailView({
                 <div className="space-y-4">
                   {projectSiteLogs.map(log => {
                     const logUser = users.find(u => u.id === log.created_by);
-                    const logDate = new Date(log.created_at).toLocaleString('en-US', {
+                    const logDateObj = new Date(log.visit_date || log.created_at || Date.now());
+                    const logDate = logDateObj.toLocaleString('en-US', {
                       month: 'short', day: 'numeric', year: 'numeric',
                       hour: '2-digit', minute: '2-digit'
                     });
@@ -617,7 +630,7 @@ export default function ProjectDetailView({
                     return (
                       <div key={log.id} className="bg-surface-container-lowest p-5 rounded-xl border border-border-subtle shadow-sm space-y-3">
                         <div className="flex items-start justify-between gap-4">
-                          <div className="space-y-1">
+                          <div className="space-y-1 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               {log.site_status && (
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${statusColorMap[log.site_status] || 'bg-secondary/10 text-secondary border-secondary/20'}`}>
@@ -627,6 +640,53 @@ export default function ProjectDetailView({
                               <span className="text-label-sm text-secondary font-medium">{logDate}</span>
                             </div>
                             <p className="text-body-md text-on-surface leading-relaxed whitespace-pre-line">{log.notes}</p>
+
+                            {/* Location-ready Metadata Pills */}
+                            {(log.location || log.weather || log.workers_count != null) && (
+                              <div className="flex flex-wrap items-center gap-3 pt-3 text-xs">
+                                {log.location && (
+                                  <span className="flex items-center gap-1.5 px-2.5 py-1 bg-surface rounded-md border border-border-subtle text-secondary font-semibold">
+                                    <span className="material-symbols-outlined text-[14px] text-primary">location_on</span>
+                                    {log.location}
+                                  </span>
+                                )}
+                                {log.weather && (
+                                  <span className="flex items-center gap-1.5 px-2.5 py-1 bg-surface rounded-md border border-border-subtle text-secondary font-semibold">
+                                    <span className="material-symbols-outlined text-[14px] text-amber-500">wb_sunny</span>
+                                    {log.weather}
+                                  </span>
+                                )}
+                                {log.workers_count != null && (
+                                  <span className="flex items-center gap-1.5 px-2.5 py-1 bg-surface rounded-md border border-border-subtle text-secondary font-semibold">
+                                    <span className="material-symbols-outlined text-[14px] text-indigo-500">engineering</span>
+                                    {log.workers_count} {log.workers_count === 1 ? 'Worker' : 'Workers'}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Photo Grid */}
+                            {log.photos && log.photos.length > 0 && (
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
+                                {log.photos.map((photoUrl, pIdx) => (
+                                  <button
+                                    key={pIdx}
+                                    type="button"
+                                    onClick={() => setPreviewPhoto(photoUrl)}
+                                    className="aspect-video bg-surface-container rounded-lg overflow-hidden relative group border border-border-subtle block w-full cursor-pointer focus:outline-none"
+                                  >
+                                    <img
+                                      src={photoUrl}
+                                      alt={`Site photo ${pIdx + 1}`}
+                                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                    />
+                                    <div className="absolute inset-0 bg-ink-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                      <span className="material-symbols-outlined text-white">zoom_in</span>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">

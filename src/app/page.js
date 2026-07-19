@@ -74,7 +74,7 @@ export default function Home() {
 
   // Form Inputs
   const [newProj, setNewProj] = useState({ name: '', code: '', client_name: '', client_email: '', location: '', description: '', status: 'planning', start_date: '', end_date: '', members: [] });
-  const [newLog, setNewLog] = useState({ project_id: '', notes: '', site_status: 'active', photos: [] });
+  const [newLog, setNewLog] = useState({ project_id: '', notes: '', site_status: 'active', visit_date: new Date().toISOString().split('T')[0], location: '', weather: '', workers_count: '', photos: [] });
   const [newTaskInput, setNewTaskInput] = useState({ project_id: '', title: '', description: '', assigned_to: '', priority: 'medium', due_date: '' });
   const [newUser, setNewUser] = useState({ name: '', email: '', role: 'staff' });
   const [newDrawingInput, setNewDrawingInput] = useState({ project_id: '', name: '', drawing_number: '', category: 'architectural', revision_number: '1', revision_notes: '', file_url: '' });
@@ -569,6 +569,8 @@ export default function Home() {
             setSelectedApprovalId={setSelectedApprovalId}
             siteLogs={siteLogs}
             approvals={approvals}
+            setShowSiteLogModal={setShowSiteLogModal}
+            setNewLog={setNewLog}
           />
         );
       default:

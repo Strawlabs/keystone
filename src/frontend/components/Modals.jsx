@@ -295,6 +295,22 @@ export default function Modals({
     setSitePhotoPreview(previews);
   };
 
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      useStore.getState().setError('Geolocation is not supported by your browser.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setNewLog(prev => ({ ...prev, location: `GPS: ${latitude.toFixed(4)}°, ${longitude.toFixed(4)}°` }));
+      },
+      (err) => {
+        useStore.getState().setError('Unable to retrieve GPS location: ' + err.message);
+      }
+    );
+  };
+
   const handleSaveSiteLogSubmit = async (e) => {
     e.preventDefault();
     setUploadingLogs(true);
@@ -303,7 +319,11 @@ export default function Modals({
       const logData = {
         project_id: targetProjId,
         notes: newLog.notes,
-        site_status: newLog.site_status || 'active'
+        site_status: newLog.site_status || 'active',
+        visit_date: newLog.visit_date ? new Date(newLog.visit_date).toISOString() : new Date().toISOString(),
+        location: newLog.location || null,
+        weather: newLog.weather || null,
+        workers_count: newLog.workers_count !== undefined && newLog.workers_count !== '' && newLog.workers_count !== null ? Number(newLog.workers_count) : null
       };
 
       const validation = createSiteLogSchema.safeParse(logData);
@@ -339,7 +359,7 @@ export default function Modals({
 
       if (success) {
         setShowSiteLogModal(false);
-        setNewLog({ project_id: '', notes: '', site_status: 'active', photos: [] });
+        setNewLog({ project_id: '', notes: '', site_status: 'active', visit_date: new Date().toISOString().split('T')[0], location: '', weather: '', workers_count: '', photos: [] });
         setSitePhotos([]);
         setSitePhotoPreview([]);
       }
@@ -525,7 +545,7 @@ export default function Modals({
               </button>
             </div>
             <form onSubmit={handleSaveSiteLogSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Select Project *</label>
                   <select
@@ -552,6 +572,62 @@ export default function Modals({
                     <option value="inspection">Inspection</option>
                     <option value="completed">Completed</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Visit Date</label>
+                  <input
+                    type="date"
+                    value={newLog.visit_date || ''}
+                    onChange={(e) => setNewLog({ ...newLog, visit_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Workers on Site</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 15"
+                    value={newLog.workers_count || ''}
+                    onChange={(e) => setNewLog({ ...newLog, workers_count: e.target.value })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider">Site Location</label>
+                    <button
+                      type="button"
+                      onClick={handleGetLocation}
+                      className="text-[10px] text-primary font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                      title="Auto-fill current GPS coordinates"
+                    >
+                      <span className="material-symbols-outlined text-[12px]">my_location</span> Get GPS
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="e.g. Sector B, Dubai Marina"
+                    value={newLog.location || ''}
+                    onChange={(e) => setNewLog({ ...newLog, location: e.target.value })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Weather Conditions</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Clear Sky, 34°C"
+                    value={newLog.weather || ''}
+                    onChange={(e) => setNewLog({ ...newLog, weather: e.target.value })}
+                    className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
+                  />
                 </div>
               </div>
 
