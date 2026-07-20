@@ -107,6 +107,8 @@ ALTER TABLE public.drawing_versions ADD COLUMN IF NOT EXISTS mime_type       tex
 -- ==============================================================
 
 ALTER TABLE public.site_logs ADD COLUMN IF NOT EXISTS site_status  text;
+ALTER TABLE public.site_logs ADD COLUMN IF NOT EXISTS visit_date   timestamp with time zone;
+ALTER TABLE public.site_logs ADD COLUMN IF NOT EXISTS location     text;
 ALTER TABLE public.site_logs ADD COLUMN IF NOT EXISTS weather       text;
 ALTER TABLE public.site_logs ADD COLUMN IF NOT EXISTS workers_count integer;
 ALTER TABLE public.site_logs ADD COLUMN IF NOT EXISTS updated_at   timestamp with time zone default timezone('utc'::text, now());

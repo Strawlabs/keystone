@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const STATUS_BADGE_STYLES = {
   active: 'bg-success/10 text-success border border-success/20',
@@ -35,6 +35,7 @@ export default function SiteLogsView({
   setShowSiteLogModal,
   projects = [],
 }) {
+  const [previewPhoto, setPreviewPhoto] = useState(null);
   const getProjectName = (id) => projects?.find(p => p.id === id)?.name || 'Unknown Project';
 
   return (
@@ -144,10 +145,11 @@ export default function SiteLogsView({
 
       {/* Timeline Section */}
       <div className="relative pl-0 md:pl-4">
-        {siteLogs.map((log, index) => {
-          const isLast = index === siteLogs.length - 1;
+        {[...siteLogs].sort((a, b) => new Date(b.visit_date || b.created_at || 0) - new Date(a.visit_date || a.created_at || 0)).map((log, index, arr) => {
+          const isLast = index === arr.length - 1;
           const initials = getInitials(log.created_by_name);
           const colorClass = getAvatarColor(log.created_by_name || 'Site Engineer');
+          const logDateObj = new Date(log.visit_date || log.created_at || Date.now());
 
           return (
             <div
@@ -171,7 +173,7 @@ export default function SiteLogsView({
                     {index === 0 ? 'Latest Update' : 'Site Audit'}
                   </span>
                   <span className="text-label-sm text-secondary font-medium">
-                    {new Date(log.created_at || Date.now()).toLocaleDateString('en-US', {
+                    {logDateObj.toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
@@ -190,7 +192,7 @@ export default function SiteLogsView({
                         <h4 className="text-body-md font-bold text-ink-black">{log.created_by_name || 'Site Engineer'}</h4>
                         <p className="text-label-sm text-secondary font-medium">
                           {log.project_id ? getProjectName(log.project_id) : 'General Site Update'} ·{' '}
-                          {new Date(log.created_at || Date.now()).toLocaleTimeString([], {
+                          {logDateObj.toLocaleTimeString([], {
                             hour: '2-digit',
                             minute: '2-digit',
                           })}
@@ -208,16 +210,39 @@ export default function SiteLogsView({
                     {log.notes}
                   </p>
 
+                  {/* Location-ready Metadata Pills */}
+                  {(log.location || log.weather || log.workers_count != null) && (
+                    <div className="flex flex-wrap items-center gap-3 mb-5 pt-3 border-t border-border-subtle/50 text-xs">
+                      {log.location && (
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-surface rounded-md border border-border-subtle text-secondary font-semibold">
+                          <span className="material-symbols-outlined text-[15px] text-primary">location_on</span>
+                          {log.location}
+                        </span>
+                      )}
+                      {log.weather && (
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-surface rounded-md border border-border-subtle text-secondary font-semibold">
+                          <span className="material-symbols-outlined text-[15px] text-amber-500">wb_sunny</span>
+                          {log.weather}
+                        </span>
+                      )}
+                      {log.workers_count != null && (
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-surface rounded-md border border-border-subtle text-secondary font-semibold">
+                          <span className="material-symbols-outlined text-[15px] text-indigo-500">engineering</span>
+                          {log.workers_count} {log.workers_count === 1 ? 'Worker' : 'Workers'}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* Photo Grid */}
                   {log.photos && log.photos.length > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       {log.photos.map((photoUrl, pIdx) => (
-                        <a
+                        <button
                           key={pIdx}
-                          href={photoUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="aspect-video bg-surface-container rounded-lg overflow-hidden relative group border border-border-subtle block"
+                          type="button"
+                          onClick={() => setPreviewPhoto(photoUrl)}
+                          className="aspect-video bg-surface-container rounded-lg overflow-hidden relative group border border-border-subtle block w-full cursor-pointer focus:outline-none"
                         >
                           <img
                             src={photoUrl}
@@ -227,7 +252,7 @@ export default function SiteLogsView({
                           <div className="absolute inset-0 bg-ink-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <span className="material-symbols-outlined text-white">zoom_in</span>
                           </div>
-                        </a>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -255,6 +280,30 @@ export default function SiteLogsView({
                 Add First Log
               </button>
             )}
+          </div>
+        )}
+
+        {/* Photo Preview Lightbox Modal */}
+        {previewPhoto && (
+          <div
+            className="fixed inset-0 z-50 bg-ink-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+            onClick={() => setPreviewPhoto(null)}
+          >
+            <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center">
+              <button
+                type="button"
+                onClick={() => setPreviewPhoto(null)}
+                className="absolute -top-12 right-0 text-white hover:text-slate-300 bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors flex items-center justify-center cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[24px]">close</span>
+              </button>
+              <img
+                src={previewPhoto}
+                alt="Site photo preview"
+                className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl border border-white/10"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
           </div>
         )}
       </div>

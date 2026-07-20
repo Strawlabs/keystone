@@ -137,11 +137,11 @@ function ActivityItem({ log, isLast }) {
   }[log.entity_type] || 'bg-primary';
 
   return (
-    <div className="relative pl-8 px-5 py-3">
+    <div className="relative pl-11 pr-5 py-3">
       {!isLast && (
-        <div className="absolute left-[34px] top-[32px] bottom-0 w-px bg-border-subtle" />
+        <div className="absolute left-[24px] top-[26px] bottom-0 w-px bg-border-subtle" />
       )}
-      <div className={`absolute left-[26px] top-[14px] h-2.5 w-2.5 rounded-full border-4 border-background box-content ${dotColor}`} />
+      <div className={`absolute left-[19px] top-[14px] h-2.5 w-2.5 rounded-full border-2 border-background box-content ${dotColor}`} />
       <div className="min-w-0 flex-1">
         <p className="text-body-md font-semibold text-ink-black leading-snug">{log.action}</p>
         {log.user_name && (
@@ -428,7 +428,7 @@ function AdminDashboard({ currentUser, projects, approvals, tasks, siteLogs, dra
                         </div>
                       </div>
                       <div className="px-0.5">
-                        <p className="text-label-md font-semibold text-ink-black truncate">{log.title}</p>
+                        <p className="text-label-md font-semibold text-ink-black truncate">{log.title || (log.notes ? log.notes.slice(0, 45) + (log.notes.length > 45 ? '...' : '') : 'Site Visit')}</p>
                         <p className="text-label-sm text-secondary">{proj?.name || 'Project'} · {relativeTime(log.visit_date || log.created_at)}</p>
                       </div>
                     </div>

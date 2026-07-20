@@ -141,8 +141,14 @@ create table public.site_logs (
     project_id uuid not null references public.projects(id) on delete cascade,
     tenant_id uuid not null references public.tenants(id) on delete cascade,
     notes text not null,
+    site_status text,
+    visit_date timestamp with time zone,
+    location text,
+    weather text,
+    workers_count integer,
     created_by uuid references public.users(id) on delete set null,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
 -- Enable RLS on site_logs
