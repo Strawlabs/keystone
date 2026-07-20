@@ -53,6 +53,22 @@ export const supabaseAuth = createClient(
   }
 );
 
+export function extractStoragePath(urlOrPath) {
+  if (!urlOrPath || typeof urlOrPath !== 'string' || urlOrPath.startsWith('blob:')) return null;
+  if (!urlOrPath.startsWith('http')) return urlOrPath;
+  const bucketMarker = '/keystone-assets/';
+  const idx = urlOrPath.indexOf(bucketMarker);
+  if (idx !== -1) {
+    let clean = urlOrPath.substring(idx + bucketMarker.length);
+    const qIdx = clean.indexOf('?');
+    if (qIdx !== -1) {
+      clean = clean.substring(0, qIdx);
+    }
+    return clean || null;
+  }
+  return null;
+}
+
 export const db = {
   // ---- TENANTS ----
   async getTenants() {
@@ -574,12 +590,24 @@ export const db = {
       if (fallbackError) throw fallbackError;
 
       const processedFallback = (fallbackData || []).map(log => {
-        const photoUrls = log.photos || (log.site_log_photos ? log.site_log_photos.map(p => typeof p === 'string' ? p : p.image_url) : []);
+        const photoList = log.site_log_photos && log.site_log_photos.length > 0
+          ? log.site_log_photos.map(p => {
+              const rawUrl = typeof p === 'string' ? p : (p.image_url || '');
+              const rawPath = typeof p === 'string' ? null : p.storage_path;
+              const storagePath = rawPath || extractStoragePath(rawUrl);
+              return { url: rawUrl, storagePath };
+            })
+          : (log.photos || []).map(url => ({
+              url,
+              storagePath: extractStoragePath(url)
+            }));
+        const photoUrls = photoList.map(p => p.url);
         return {
           ...log,
           created_by_name: log.created_by_name || 'Site Engineer',
           photos: photoUrls,
-          site_log_photos: log.site_log_photos || photoUrls.map((url, idx) => ({ id: `photo-${idx}`, image_url: url }))
+          photoObjects: photoList,
+          site_log_photos: log.site_log_photos || photoList.map((p, idx) => ({ id: `photo-${idx}`, image_url: p.url, storage_path: p.storagePath }))
         };
       });
       processedFallback.sort((a, b) => new Date(b.visit_date || b.created_at || 0) - new Date(a.visit_date || a.created_at || 0));
@@ -589,13 +617,28 @@ export const db = {
     if (error) throw error;
 
     const processed = (data || []).map(log => {
-      const photoUrls = log.photos || (log.site_log_photos ? log.site_log_photos.map(p => typeof p === 'string' ? p : p.image_url) : []);
+      // Normalize photos: each entry in site_log_photos has image_url which may be
+      // a private storage path (e.g. "site-logs/...") or a full signed URL.
+      // We expose both so the frontend can call getSignedUrl() on storage paths.
+      const photoList = log.site_log_photos && log.site_log_photos.length > 0
+        ? log.site_log_photos.map(p => {
+            const rawUrl = typeof p === 'string' ? p : (p.image_url || '');
+            const rawPath = typeof p === 'string' ? null : p.storage_path;
+            const storagePath = rawPath || extractStoragePath(rawUrl);
+            return { url: rawUrl, storagePath };
+          })
+        : (log.photos || []).map(url => ({
+            url,
+            storagePath: extractStoragePath(url)
+          }));
       const createdByName = log.created_by_name || (log.users ? log.users.name : 'Site Engineer');
       return {
         ...log,
         created_by_name: createdByName,
-        photos: photoUrls,
-        site_log_photos: log.site_log_photos || photoUrls.map((url, idx) => ({ id: `photo-${idx}`, image_url: url }))
+        // Keep legacy `photos` as URL array for backwards compat, add photoObjects for signed URL resolution
+        photos: photoList.map(p => p.url),
+        photoObjects: photoList,
+        site_log_photos: log.site_log_photos || photoList.map((p, idx) => ({ id: `photo-${idx}`, image_url: p.url, storage_path: p.storagePath }))
       };
     });
 
@@ -629,12 +672,18 @@ export const db = {
     }
 
     if (photoUrls.length > 0) {
-      const photoInserts = photoUrls.map(url => ({ site_log_id: log.id, image_url: url }));
+      const photoInserts = photoUrls.map(url => ({
+        site_log_id: log.id,
+        image_url: url,
+        storage_path: extractStoragePath(url)
+      }));
       const { error: photoError } = await supabase.from('site_log_photos').insert(photoInserts);
       if (photoError) throw photoError;
     }
     log.photos = photoUrls;
-    log.site_log_photos = photoUrls.map((url, idx) => ({ id: `new-photo-${idx}`, site_log_id: log.id, image_url: url }));
+    const photoList = photoUrls.map((url, idx) => ({ id: `new-photo-${idx}`, site_log_id: log.id, image_url: url, storage_path: extractStoragePath(url) }));
+    log.site_log_photos = photoList;
+    log.photoObjects = photoUrls.map(url => ({ url, storagePath: extractStoragePath(url) }));
     return log;
   },
 
@@ -664,13 +713,42 @@ export const db = {
 
   // ---- ACTIVITY LOGS ----
   async getActivityLogs(tenantId) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('activity_logs')
-      .select('*')
+      .select('*, users:user_id(name, email, role, avatar_url)')
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data;
+
+    if (error && (error.code === 'PGRST200' || error.message?.includes('users') || error.message?.includes('relationship'))) {
+      const fallback = await supabase
+        .from('activity_logs')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false });
+      if (fallback.error) throw fallback.error;
+      data = fallback.data;
+    } else if (error) {
+      throw error;
+    }
+
+    let usersMap = {};
+    try {
+      const usersList = await this.getUsers(tenantId);
+      usersMap = Object.fromEntries((usersList || []).map(u => [u.id, u]));
+    } catch (_) {
+      // fallback if getUsers fails
+    }
+
+    return (data || []).map(log => {
+      const u = log.users || usersMap[log.user_id] || {};
+      return {
+        ...log,
+        user_name: u.name || log.user_name || 'System',
+        user_role: u.role || log.user_role || 'system',
+        user_email: u.email || log.user_email || '',
+        user_avatar: u.avatar_url || log.user_avatar || null
+      };
+    });
   },
 
   async createActivityLog(logData) {

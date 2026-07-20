@@ -34,8 +34,12 @@ export async function POST(request, { params }) {
     }
 
     // Insert photos directly into Supabase site_log_photos
-    const { supabase } = await import('@/backend/db/client');
-    const photoInserts = image_urls.map(url => ({ site_log_id: id, image_url: url }));
+    const { supabase, extractStoragePath } = await import('@/backend/db/client');
+    const photoInserts = image_urls.map(url => ({
+      site_log_id: id,
+      image_url: url,
+      storage_path: extractStoragePath(url)
+    }));
     const { data: addedPhotos, error: insertError } = await supabase
       .from('site_log_photos')
       .insert(photoInserts)
