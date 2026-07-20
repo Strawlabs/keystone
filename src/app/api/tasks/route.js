@@ -82,7 +82,8 @@ export async function POST(request) {
     const actionName = assigned_to ? 'Task Assigned' : 'Task Created';
     await logActivity(tenantId, userId, 'task', newTask.id, actionName, {
       taskTitle: title,
-      assignedTo: assigned_to || null
+      assignedTo: assigned_to || null,
+      projectId: project_id
     });
 
     // Notify assignee

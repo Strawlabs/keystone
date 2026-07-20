@@ -40,7 +40,8 @@ export async function POST(request, { params }) {
     // Log the action
     await logActivity(tenantId, userId, 'approval', id, actionText, {
       drawingName: drawing.name,
-      comments
+      comments,
+      projectId: drawing.project_id
     });
 
     // Notify the architect who submitted it, and the admin

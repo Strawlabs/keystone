@@ -85,7 +85,8 @@ export async function POST(request) {
     // Log project creation in audit trail
     await logActivity(tenantId, userId, 'project', newProject.id, 'Project Created', { 
       projectName: newProject.name,
-      projectCode: newProject.code
+      projectCode: newProject.code,
+      projectId: newProject.id
     });
 
     return NextResponse.json({ message: 'Project created successfully', project: newProject }, { status: 201 });

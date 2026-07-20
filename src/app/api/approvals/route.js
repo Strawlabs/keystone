@@ -75,7 +75,8 @@ export async function POST(request) {
     await logActivity(tenantId, userId, 'approval', newApproval.id, 'Approval Requested', {
       drawingName: drawing.name,
       dueDate: due_date || null,
-      submissionNotes: initialNotes
+      submissionNotes: initialNotes,
+      projectId: drawing.project_id
     });
 
     // Notify the Client

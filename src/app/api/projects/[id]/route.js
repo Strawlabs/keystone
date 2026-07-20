@@ -51,11 +51,13 @@ export async function PUT(request, { params }) {
       await logActivity(tenantId, userId, 'project', id, 'Project Status Changed', {
         projectName: project.name,
         oldStatus: project.status,
-        newStatus: status
+        newStatus: status,
+        projectId: id
       });
     } else {
       await logActivity(tenantId, userId, 'project', id, 'Project Updated', {
-        projectName: project.name
+        projectName: project.name,
+        projectId: id
       });
     }
 
@@ -92,7 +94,8 @@ export async function DELETE(request, { params }) {
     // Log deletion
     await logActivity(tenantId, userId, 'project', id, 'Project Archived', {
       projectName: project.name,
-      projectCode: project.code
+      projectCode: project.code,
+      projectId: id
     });
 
     return NextResponse.json({ message: 'Project archived successfully.' });

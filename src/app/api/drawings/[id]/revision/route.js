@@ -43,7 +43,8 @@ export async function POST(request, { params }) {
     await logActivity(tenantId, userId, 'drawing', id, 'Revision Uploaded', {
       drawingName: drawing.name,
       revisionNumber: result.version.revision_number,
-      notes: notes
+      notes: notes,
+      projectId: drawing.project_id
     });
 
     return NextResponse.json({

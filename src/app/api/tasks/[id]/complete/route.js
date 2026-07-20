@@ -24,7 +24,8 @@ export async function POST(request, { params }) {
 
     // Log the completion
     await logActivity(tenantId, userId, 'task', id, 'Task Completed', {
-      taskTitle: targetTask.title
+      taskTitle: targetTask.title,
+      projectId: targetTask.project_id
     });
 
     // Notify project admins

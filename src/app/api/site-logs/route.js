@@ -82,7 +82,8 @@ export async function POST(request) {
     // Log the site log creation
     await logActivity(tenantId, userId, 'site_log', newLog.id, 'Site Log Created', {
       projectName: project ? project.name : 'Unknown Project',
-      photoCount: photoUrls.length
+      photoCount: photoUrls.length,
+      projectId: project_id
     });
 
     return NextResponse.json({ message: 'Site log created successfully', siteLog: newLog });
