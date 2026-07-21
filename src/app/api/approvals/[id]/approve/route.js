@@ -35,7 +35,8 @@ export async function POST(request, { params }) {
     // Log the approval action
     await logActivity(tenantId, userId, 'approval', id, 'Drawing Approved', {
       drawingName: drawing.name,
-      comments
+      comments,
+      projectId: drawing.project_id
     });
 
     // Notify the architect who submitted it, and the admin

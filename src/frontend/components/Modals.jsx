@@ -348,7 +348,9 @@ export default function Modals({
         });
         const uploadData = await uploadRes.json();
         if (uploadRes.ok) {
-          uploadedUrls.push(uploadData.fileUrl);
+          // Store the permanent storagePath in the DB, not the expiring signed URL.
+          // The signed URL is only valid for 60 min; storagePath is re-signed on demand when viewing.
+          uploadedUrls.push(uploadData.storagePath || uploadData.fileUrl);
         }
       }
 

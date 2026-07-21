@@ -47,7 +47,8 @@ export async function PUT(request, { params }) {
       loggedEvent = true;
       if (status === 'completed') {
         await logActivity(tenantId, userId, 'task', id, 'Task Completed', {
-          taskTitle: updatedTask.title
+          taskTitle: updatedTask.title,
+          projectId: task.project_id
         });
 
         // Notify project admins
@@ -65,12 +66,14 @@ export async function PUT(request, { params }) {
         }
       } else if (status === 'delayed') {
         await logActivity(tenantId, userId, 'task', id, 'Task Delayed', {
-          taskTitle: updatedTask.title
+          taskTitle: updatedTask.title,
+          projectId: task.project_id
         });
       } else {
         await logActivity(tenantId, userId, 'task', id, 'Task Updated', {
           taskTitle: updatedTask.title,
-          status: updatedTask.status
+          status: updatedTask.status,
+          projectId: task.project_id
         });
       }
     }
@@ -79,7 +82,8 @@ export async function PUT(request, { params }) {
       loggedEvent = true;
       await logActivity(tenantId, userId, 'task', id, 'Task Assigned', {
         taskTitle: updatedTask.title,
-        assignedTo: assigned_to
+        assignedTo: assigned_to,
+        projectId: task.project_id
       });
 
       // Notify new assignee
@@ -95,7 +99,8 @@ export async function PUT(request, { params }) {
     if (!loggedEvent) {
       await logActivity(tenantId, userId, 'task', id, 'Task Updated', {
         taskTitle: updatedTask.title,
-        status: updatedTask.status
+        status: updatedTask.status,
+        projectId: task.project_id
       });
     }
 

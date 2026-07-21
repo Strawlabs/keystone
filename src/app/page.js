@@ -422,6 +422,7 @@ export default function Home() {
             setShowDrawingModal={setShowDrawingModal}
             approveDrawing={approveDrawing}
             rejectDrawing={rejectDrawing}
+            getSignedUrl={getSignedUrl}
           />
         );
       case 'projects':
@@ -508,6 +509,7 @@ export default function Home() {
             isClient={isClient}
             setShowSiteLogModal={setShowSiteLogModal}
             projects={projects}
+            getSignedUrl={getSignedUrl}
           />
         );
       case 'notifications':
@@ -571,6 +573,7 @@ export default function Home() {
             approvals={approvals}
             setShowSiteLogModal={setShowSiteLogModal}
             setNewLog={setNewLog}
+            getSignedUrl={getSignedUrl}
           />
         );
       default:

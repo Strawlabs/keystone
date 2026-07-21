@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const STATUS_BADGE_STYLES = {
   active: 'bg-success/10 text-success border border-success/20',
@@ -29,14 +29,73 @@ const getAvatarColor = (name = '') => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+const extractStoragePath = (urlOrPath) => {
+  if (!urlOrPath || typeof urlOrPath !== 'string' || urlOrPath.startsWith('blob:')) return null;
+  if (!urlOrPath.startsWith('http')) return urlOrPath;
+  const bucketMarker = '/keystone-assets/';
+  const idx = urlOrPath.indexOf(bucketMarker);
+  if (idx !== -1) {
+    let clean = urlOrPath.substring(idx + bucketMarker.length);
+    const qIdx = clean.indexOf('?');
+    if (qIdx !== -1) {
+      clean = clean.substring(0, qIdx);
+    }
+    return clean || null;
+  }
+  return null;
+};
+
 export default function SiteLogsView({
   siteLogs = [],
   isClient,
   setShowSiteLogModal,
   projects = [],
+  getSignedUrl,
 }) {
   const [previewPhoto, setPreviewPhoto] = useState(null);
+  // Map: logId -> array of resolved display URLs (signed URLs for private paths, raw otherwise)
+  const [resolvedPhotos, setResolvedPhotos] = useState({});
+
   const getProjectName = (id) => projects?.find(p => p.id === id)?.name || 'Unknown Project';
+
+  // Resolve signed URLs for all site log photos that are private storage paths
+  useEffect(() => {
+    if (!getSignedUrl || siteLogs.length === 0) return;
+    let cancelled = false;
+
+    const resolveAll = async () => {
+      const result = {};
+      for (const log of siteLogs) {
+        const photoObjects = log.photoObjects || (log.photos || []).map(url => ({
+          url,
+          storagePath: extractStoragePath(url)
+        }));
+
+        if (photoObjects.length === 0) continue;
+
+        const resolved = await Promise.all(
+          photoObjects.map(async (photo) => {
+            const stPath = photo.storagePath || extractStoragePath(photo.url);
+            if (stPath) {
+              const signed = await getSignedUrl(stPath);
+              if (signed) return signed;
+            }
+            return photo.url;
+          })
+        );
+
+        if (!cancelled) {
+          result[log.id] = resolved;
+        }
+      }
+      if (!cancelled) {
+        setResolvedPhotos(result);
+      }
+    };
+
+    resolveAll();
+    return () => { cancelled = true; };
+  }, [siteLogs, getSignedUrl]);
 
   return (
     <div className="space-y-8 animate-fade-in text-on-surface">
@@ -235,27 +294,37 @@ export default function SiteLogsView({
                   )}
 
                   {/* Photo Grid */}
-                  {log.photos && log.photos.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                      {log.photos.map((photoUrl, pIdx) => (
-                        <button
-                          key={pIdx}
-                          type="button"
-                          onClick={() => setPreviewPhoto(photoUrl)}
-                          className="aspect-video bg-surface-container rounded-lg overflow-hidden relative group border border-border-subtle block w-full cursor-pointer focus:outline-none"
-                        >
-                          <img
-                            src={photoUrl}
-                            alt={`Site photo ${pIdx + 1}`}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          />
-                          <div className="absolute inset-0 bg-ink-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <span className="material-symbols-outlined text-white">zoom_in</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {log.photos && log.photos.length > 0 && (() => {
+                    // Use resolved (signed) URLs if available; otherwise fall back to raw URL (may be expiring or full http URL)
+                    const displayUrls = resolvedPhotos[log.id] || log.photos;
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        {displayUrls.map((photoUrl, pIdx) => (
+                          <button
+                            key={pIdx}
+                            type="button"
+                            onClick={() => setPreviewPhoto(photoUrl)}
+                            className="aspect-video bg-surface-container rounded-lg overflow-hidden relative group border border-border-subtle block w-full cursor-pointer focus:outline-none"
+                          >
+                            {photoUrl ? (
+                              <img
+                                src={photoUrl}
+                                alt={`Site photo ${pIdx + 1}`}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                              />
+                            ) : null}
+                            <div className={`${photoUrl ? 'hidden' : 'flex'} absolute inset-0 items-center justify-center bg-surface-container`}>
+                              <span className="material-symbols-outlined text-secondary text-[24px]">image_not_supported</span>
+                            </div>
+                            <div className="absolute inset-0 bg-ink-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <span className="material-symbols-outlined text-white">zoom_in</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

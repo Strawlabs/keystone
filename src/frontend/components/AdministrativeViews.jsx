@@ -219,50 +219,87 @@ export function UsersView({ users = [], setShowUserModal }) {
 }
 
 // 2. Operations audit timeline with filters
+// 2. Operations audit timeline with filters
 export function ActivityView({ activityLogs = [], users = [] }) {
   const [userFilter, setUserFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const activityTypes = ['all', 'project', 'drawing', 'task', 'site_log', 'approval', 'auth'];
+
+  const getLocalDateStr = (dateVal) => {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
 
   const filtered = activityLogs.filter(log => {
     const matchUser = userFilter === 'all' || log.user_id === userFilter;
     const matchType = typeFilter === 'all' || log.entity_type === typeFilter;
-    const matchDate = !dateFilter || new Date(log.created_at).toDateString() === new Date(dateFilter).toDateString();
-    return matchUser && matchType && matchDate;
+    const matchDate = !dateFilter || 
+      (log.created_at && log.created_at.slice(0, 10) === dateFilter) || 
+      getLocalDateStr(log.created_at) === dateFilter;
+    const q = searchQuery.toLowerCase().trim();
+    const matchSearch = !q || 
+      (log.action?.toLowerCase().includes(q)) ||
+      (log.user_name?.toLowerCase().includes(q)) ||
+      (log.metadata?.projectName?.toLowerCase().includes(q)) ||
+      (log.metadata?.drawingName?.toLowerCase().includes(q)) ||
+      (log.metadata?.taskTitle?.toLowerCase().includes(q)) ||
+      (log.metadata?.comments?.toLowerCase().includes(q));
+    return matchUser && matchType && matchDate && matchSearch;
   });
 
   const typeColor = {
-    project: 'text-primary bg-primary/10',
-    drawing: 'text-tertiary bg-tertiary/10',
-    task: 'text-warning bg-warning/10',
-    site_log: 'text-success bg-success/10',
-    approval: 'text-error bg-error/10',
-    auth: 'text-secondary bg-secondary/10',
+    project: 'text-primary bg-primary/10 border-primary/20',
+    drawing: 'text-tertiary bg-tertiary/10 border-tertiary/20',
+    task: 'text-warning bg-warning/10 border-warning/20',
+    site_log: 'text-success bg-success/10 border-success/20',
+    approval: 'text-error bg-error/10 border-error/20',
+    auth: 'text-secondary bg-secondary/10 border-secondary/20',
   };
 
   return (
     <div className="space-y-8 animate-fade-in text-on-surface">
-      <div>
-        <nav className="flex items-center gap-2 text-label-md text-secondary mb-2">
-          <span>Audit Trail</span>
-          <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-          <span className="text-primary font-semibold">Activity logs</span>
-        </nav>
-        <h2 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight">
-          System Activity Timeline
-        </h2>
-        <p className="text-body-md text-secondary mt-1 font-medium">
-          Real-time audit log of all document updates, task assignments, approvals, and user logins.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <nav className="flex items-center gap-2 text-label-md text-secondary mb-2">
+            <span>Audit Trail</span>
+            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+            <span className="text-primary font-semibold">Activity logs</span>
+          </nav>
+          <h2 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight">
+            System Activity Timeline
+          </h2>
+          <p className="text-body-md text-secondary mt-1 font-medium">
+            Real-time audit log of all document updates, task assignments, approvals, and user logins.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-low border border-border-subtle text-xs font-bold text-secondary">
+          <span className="material-symbols-outlined text-[16px] text-primary">analytics</span>
+          <span>{filtered.length} {filtered.length === 1 ? 'entry' : 'entries'} found</span>
+        </div>
       </div>
 
       {/* Filters Row */}
       <div className="flex flex-wrap items-center gap-3 p-4 bg-surface-container-low border border-border-subtle rounded-xl shadow-sm">
-        <div className="flex items-center gap-2 mr-2">
+        <div className="flex items-center gap-2 mr-1">
           <span className="material-symbols-outlined text-secondary text-[20px]">filter_list</span>
           <span className="text-[10px] font-bold text-secondary uppercase tracking-wider">Filters:</span>
+        </div>
+
+        {/* Search Input */}
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-secondary">search</span>
+          <input
+            type="text"
+            placeholder="Search activities..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 bg-surface-container-lowest border border-border-subtle rounded-lg text-xs font-medium text-ink-black placeholder:text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
         </div>
 
         {/* User Filter */}
@@ -296,10 +333,10 @@ export function ActivityView({ activityLogs = [], users = [] }) {
           className="py-1.5 px-3 bg-surface-container-lowest border border-border-subtle rounded-lg text-xs text-secondary font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
 
-        {(userFilter !== 'all' || typeFilter !== 'all' || dateFilter) && (
+        {(userFilter !== 'all' || typeFilter !== 'all' || dateFilter || searchQuery) && (
           <button
-            onClick={() => { setUserFilter('all'); setTypeFilter('all'); setDateFilter(''); }}
-            className="text-xs text-primary font-bold hover:underline cursor-pointer ml-2"
+            onClick={() => { setUserFilter('all'); setTypeFilter('all'); setDateFilter(''); setSearchQuery(''); }}
+            className="text-xs text-primary font-bold hover:underline cursor-pointer ml-auto sm:ml-2"
           >
             Clear Filters
           </button>
@@ -307,36 +344,66 @@ export function ActivityView({ activityLogs = [], users = [] }) {
       </div>
 
       {/* Activity Feed */}
-      <div className="space-y-4">
-        {filtered.map((log) => (
-          <div key={log.id} className="p-4 bg-surface-container-lowest border border-border-subtle rounded-xl flex items-start justify-between gap-4 hover:border-primary/20 transition-all shadow-sm">
-            <div className="flex items-start gap-3">
-              <span className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${typeColor[log.entity_type]?.split(' ')[0] || 'bg-outline'}`} />
-              <div>
-                <p className="text-xs font-bold text-ink-black leading-snug">{log.action}</p>
-                <p className="text-[10px] text-secondary font-semibold mt-0.5">
-                  Actor: <span className="text-on-surface">{log.user_name || 'System'}</span>
-                  {log.entity_type && <span className="ml-2 uppercase tracking-wide text-[8px] px-1.5 py-0.5 rounded bg-surface-container border border-border-subtle">· {log.entity_type.replace('_', ' ')}</span>}
-                </p>
+      <div className="space-y-3">
+        {filtered.map((log) => {
+          const m = log.metadata || {};
+          const hasMeta = m.projectName || m.drawingName || m.taskTitle || m.comments || m.oldStatus || m.newStatus || m.revisionNumber || m.photoCount;
+          return (
+            <div key={log.id} className="p-4 bg-surface-container-lowest border border-border-subtle rounded-xl flex flex-col sm:flex-row sm:items-start justify-between gap-4 hover:border-primary/20 transition-all shadow-sm">
+              <div className="flex items-start gap-3.5">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border mt-0.5 ${typeColor[log.entity_type] || 'bg-surface-container border-border-subtle text-secondary'}`}>
+                  <span className="material-symbols-outlined text-[18px]">
+                    {log.entity_type === 'project' ? 'folder' :
+                     log.entity_type === 'drawing' ? 'draw' :
+                     log.entity_type === 'task' ? 'task_alt' :
+                     log.entity_type === 'site_log' ? 'domain' :
+                     log.entity_type === 'approval' ? 'verified' : 'badge'}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-bold text-ink-black leading-snug">{log.action}</p>
+                    {log.entity_type && (
+                      <span className="uppercase tracking-wider text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-surface-container border border-border-subtle text-secondary">
+                        {log.entity_type.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-secondary">
+                    <span className="font-semibold text-on-surface">Actor: {log.user_name || 'System'}</span>
+                    {log.user_role && <span className="text-[10px] uppercase font-bold text-secondary/80">({log.user_role})</span>}
+                  </div>
+                  {hasMeta && (
+                    <div className="mt-2 text-xs bg-surface-container-low/70 border border-border-subtle/60 rounded-lg p-2.5 space-y-1 text-secondary">
+                      {m.projectName && <div className="font-semibold text-ink-black">Project: <span className="font-normal text-secondary">{m.projectName}</span></div>}
+                      {m.drawingName && <div className="font-semibold text-ink-black">Drawing: <span className="font-normal text-secondary">{m.drawingName} {m.revisionNumber ? `(Rev ${m.revisionNumber})` : ''}</span></div>}
+                      {m.taskTitle && <div className="font-semibold text-ink-black">Task: <span className="font-normal text-secondary">{m.taskTitle}</span></div>}
+                      {m.oldStatus && m.newStatus && <div>Status changed from <span className="font-medium text-ink-black">{m.oldStatus}</span> to <span className="font-medium text-ink-black">{m.newStatus}</span></div>}
+                      {m.photoCount !== undefined && <div>Photos attached: <span className="font-medium text-ink-black">{m.photoCount}</span></div>}
+                      {m.comments && <div className="italic text-on-surface">"{m.comments}"</div>}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-secondary font-mono shrink-0 sm:self-start bg-surface-container-low px-2.5 py-1 rounded-md border border-border-subtle/50">
+                <span className="material-symbols-outlined text-[14px]">schedule</span>
+                <span>
+                  {new Date(log.created_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-1 text-[10px] text-secondary font-mono shrink-0">
-              <span className="material-symbols-outlined text-[16px]">schedule</span>
-              <span>
-                {new Date(log.created_at).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {filtered.length === 0 && (
           <div className="py-16 text-center text-secondary border border-dashed border-border-subtle rounded-xl bg-surface-container-low/30">
             <span className="material-symbols-outlined text-[40px] text-secondary mb-2">history_toggle_off</span>
             <p className="text-sm font-bold text-on-surface">No matching activity logs found</p>
+            <p className="text-xs text-secondary mt-1">Try adjusting your filters or search terms</p>
           </div>
         )}
       </div>

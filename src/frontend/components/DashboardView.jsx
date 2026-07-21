@@ -29,6 +29,47 @@ const STATUS_COLORS = {
   cancelled: { bg: 'bg-red-100',    text: 'text-red-600',    dot: 'bg-red-400'    },
 };
 
+function ResolvedImage({ src, alt, className, getSignedUrl }) {
+  const [resolvedSrc, setResolvedSrc] = React.useState(src);
+
+  React.useEffect(() => {
+    if (!src) return;
+    if (src.startsWith('blob:')) {
+      setResolvedSrc(src);
+      return;
+    }
+    const extractPath = (url) => {
+      if (!url.startsWith('http')) return url;
+      const marker = '/keystone-assets/';
+      const idx = url.indexOf(marker);
+      if (idx !== -1) {
+        let clean = url.substring(idx + marker.length);
+        const qIdx = clean.indexOf('?');
+        if (qIdx !== -1) clean = clean.substring(0, qIdx);
+        return clean || null;
+      }
+      return null;
+    };
+    const stPath = extractPath(src);
+    if (stPath && getSignedUrl) {
+      getSignedUrl(stPath).then((signed) => {
+        if (signed) setResolvedSrc(signed);
+      });
+    } else {
+      setResolvedSrc(src);
+    }
+  }, [src, getSignedUrl]);
+
+  return (
+    <img
+      src={resolvedSrc || src}
+      alt={alt}
+      className={className}
+      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+    />
+  );
+}
+
 function StatusPill({ status }) {
   const c = STATUS_COLORS[status] || STATUS_COLORS.planning;
   return (
@@ -199,7 +240,7 @@ export function DashboardSkeleton({ role = 'admin' }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
-function AdminDashboard({ currentUser, projects, approvals, tasks, siteLogs, drawings, users, activityLogs, dashboardStats, setTab, setShowProjectModal, setShowUserModal }) {
+function AdminDashboard({ currentUser, projects, approvals, tasks, siteLogs, drawings, users, activityLogs, dashboardStats, setTab, setShowProjectModal, setShowUserModal, getSignedUrl }) {
   const now = new Date();
   const kpis = dashboardStats?.kpis || {};
 
@@ -411,10 +452,11 @@ function AdminDashboard({ currentUser, projects, approvals, tasks, siteLogs, dra
                     >
                       <div className="relative aspect-video rounded-lg overflow-hidden mb-1.5 bg-surface-container">
                         {hasPhoto ? (
-                          <img
+                          <ResolvedImage
                             src={hasPhoto}
                             alt={log.title}
                             className="w-full h-full object-cover img-zoom"
+                            getSignedUrl={getSignedUrl}
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-surface-container-high">
@@ -868,6 +910,7 @@ export default function DashboardView({
   setShowDrawingModal,
   approveDrawing,
   rejectDrawing,
+  getSignedUrl,
 }) {
   const role = currentUser?.role;
 
@@ -886,6 +929,7 @@ export default function DashboardView({
         setTab={setTab}
         setShowProjectModal={setShowProjectModal}
         setShowUserModal={setShowUserModal}
+        getSignedUrl={getSignedUrl}
       />
     );
   }

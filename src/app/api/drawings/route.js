@@ -79,7 +79,9 @@ export async function POST(request) {
     // Log drawing creation
     await logActivity(tenantId, userId, 'drawing', newDrawing.id, 'Drawing Uploaded', {
       drawingName: name,
-      category
+      category,
+      projectId: project_id,
+      projectName: project.name
     });
 
     // Notify Admins and Clients assigned to this project

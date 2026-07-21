@@ -69,7 +69,8 @@ export async function POST(request, { params }) {
     await logActivity(tenantId, currentUserId, 'project', projectId, 'Project Member Added', {
       projectName: project.name,
       addedUserName: targetUser.name,
-      addedUserRole: role
+      addedUserRole: role,
+      projectId: projectId
     });
 
     return NextResponse.json({ message: 'Project member added successfully', member }, { status: 201 });
@@ -114,7 +115,8 @@ export async function DELETE(request, { params }) {
     // Log activity
     await logActivity(tenantId, currentUserId, 'project', projectId, 'Project Member Removed', {
       projectName: project.name,
-      removedUserName: targetUser ? targetUser.name : 'Unknown User'
+      removedUserName: targetUser ? targetUser.name : 'Unknown User',
+      projectId: projectId
     });
 
     return NextResponse.json({ message: 'Project member removed successfully' });

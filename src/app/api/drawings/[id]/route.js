@@ -73,7 +73,8 @@ export async function PATCH(request, { params }) {
 
     await logActivity(tenantId, userId, 'drawing', id, 'Drawing Updated', {
       drawingName: drawing.name,
-      updates: validation.data
+      updates: validation.data,
+      projectId: drawing.project_id
     });
 
     return NextResponse.json({ message: 'Drawing updated successfully', drawing: updatedDrawing });
@@ -133,7 +134,8 @@ export async function DELETE(request, { params }) {
     await db.deleteDrawing(id);
 
     await logActivity(tenantId, userId, 'drawing', id, 'Drawing Deleted', {
-      drawingName: drawing.name
+      drawingName: drawing.name,
+      projectId: drawing.project_id
     });
 
     return NextResponse.json({ message: 'Drawing deleted successfully' });

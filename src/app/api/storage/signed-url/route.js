@@ -55,15 +55,35 @@ export async function POST(request) {
     }
 
     if (!isAuthorized) {
-      // As a fallback for site-log photos and other uploads, verify the path prefix
-      // belongs to a valid category. Paths always start with: drawings/ site-logs/ etc.
-      // This is a secondary check — primary ownership is by tenant-scoped DB record.
+      // Fallback: check site_log_photos for this storage path, scoped to tenant
+      // This verifies site-log photos belong to the requesting tenant
       const pathSegment = storagePath.split('/')[0];
-      const allowedPaths = ['drawings', 'site-logs'];
-      if (!allowedPaths.includes(pathSegment)) {
+      if (pathSegment === 'site-logs') {
+        const { data: sitePhotoMatch } = await supabase
+          .from('site_log_photos')
+          .select('id, site_log_id, site_logs!inner(tenant_id, project_id)')
+          .or(`storage_path.eq.${storagePath},image_url.eq.${storagePath},image_url.ilike.%${storagePath}%`)
+          .eq('site_logs.tenant_id', tenantId)
+          .maybeSingle();
+
+        if (!sitePhotoMatch) {
+          // Could be a freshly-uploaded path not yet in DB; allow if path belongs to site-logs prefix and user is authenticated
+          // This is a lenient fallback for newly-uploaded photos during the same session
+          console.warn(`site-log photo not found in DB for path ${storagePath}; allowing by path prefix for authenticated user`);
+        } else {
+          // If project_id is set, check user is allowed to access it
+          const projectId = sitePhotoMatch.site_logs?.project_id;
+          if (projectId) {
+            const allowedIds = await db.getAllowedProjectIds(tenantId, userId, role);
+            if (!allowedIds.includes(projectId)) {
+              return NextResponse.json({ error: 'Unauthorized: Access to this site log photo is restricted.' }, { status: 403 });
+            }
+          }
+        }
+      } else {
+        // Reject anything that isn't an allowed path category
         return NextResponse.json({ error: 'Unauthorized: resource not found.' }, { status: 403 });
       }
-      // For site-log photos we skip DB validation and rely on auth context alone
     }
 
     // ── Generate signed URL (TTL: 60 minutes = 3600 seconds) ──────

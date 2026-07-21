@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const STATUS_OPTIONS = [
   { value: 'planning', label: 'Planning', styles: 'bg-warning/10 text-warning border border-warning/20' },
@@ -7,6 +7,22 @@ const STATUS_OPTIONS = [
   { value: 'completed', label: 'Completed', styles: 'bg-success/20 text-success border border-success/30' },
   { value: 'cancelled', label: 'Cancelled', styles: 'bg-error/10 text-error border border-error/20' }
 ];
+
+const extractStoragePath = (urlOrPath) => {
+  if (!urlOrPath || typeof urlOrPath !== 'string' || urlOrPath.startsWith('blob:')) return null;
+  if (!urlOrPath.startsWith('http')) return urlOrPath;
+  const bucketMarker = '/keystone-assets/';
+  const idx = urlOrPath.indexOf(bucketMarker);
+  if (idx !== -1) {
+    let clean = urlOrPath.substring(idx + bucketMarker.length);
+    const qIdx = clean.indexOf('?');
+    if (qIdx !== -1) {
+      clean = clean.substring(0, qIdx);
+    }
+    return clean || null;
+  }
+  return null;
+};
 
 export default function ProjectDetailView({
   project,
@@ -26,12 +42,73 @@ export default function ProjectDetailView({
   approvals = [],
   setShowSiteLogModal,
   setNewLog,
+  getSignedUrl,
 }) {
   const [activeSubTab, setActiveSubTab] = useState('overview'); // overview, team, drawings, tasks, site-logs, approvals, timeline
   const [selectedUserToAdd, setSelectedUserToAdd] = useState('');
   const [selectedRoleForAdd, setSelectedRoleForAdd] = useState('staff');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState(null);
+  // Map: logId -> array of resolved display URLs for private site log photos
+  const [resolvedSiteLogPhotos, setResolvedSiteLogPhotos] = useState({});
+
+  // Resolve signed URLs for all site log photos in this project that are private storage paths
+  useEffect(() => {
+    if (!getSignedUrl || siteLogs.length === 0) return;
+    let cancelled = false;
+    const resolveAll = async () => {
+      const result = {};
+      for (const log of siteLogs) {
+        const photoObjects = log.photoObjects || (log.photos || []).map(url => ({
+          url,
+          storagePath: extractStoragePath(url)
+        }));
+        if (photoObjects.length === 0) continue;
+        const resolved = await Promise.all(
+          photoObjects.map(async (photo) => {
+            const stPath = photo.storagePath || extractStoragePath(photo.url);
+            if (stPath) {
+              const signed = await getSignedUrl(stPath);
+              if (signed) return signed;
+            }
+            return photo.url;
+          })
+        );
+        if (!cancelled) result[log.id] = resolved;
+      }
+      if (!cancelled) setResolvedSiteLogPhotos(result);
+    };
+    resolveAll();
+    return () => { cancelled = true; };
+  }, [siteLogs, getSignedUrl]);
+
+  const [timelineUserFilter, setTimelineUserFilter] = useState('all');
+  const [timelineTypeFilter, setTimelineTypeFilter] = useState('all');
+  const [timelineDateFilter, setTimelineDateFilter] = useState('');
+  const [timelineSearchQuery, setTimelineSearchQuery] = useState('');
+
+  const getLocalDateStr = (dateVal) => {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const filteredProjectTimeline = (projectTimeline || []).filter(log => {
+    const matchUser = timelineUserFilter === 'all' || log.user_id === timelineUserFilter;
+    const matchType = timelineTypeFilter === 'all' || log.entity_type === timelineTypeFilter;
+    const matchDate = !timelineDateFilter || 
+      (log.created_at && log.created_at.slice(0, 10) === timelineDateFilter) || 
+      getLocalDateStr(log.created_at) === timelineDateFilter;
+    const q = timelineSearchQuery.toLowerCase().trim();
+    const matchSearch = !q || 
+      (log.action?.toLowerCase().includes(q)) ||
+      (log.user_name?.toLowerCase().includes(q)) ||
+      (log.metadata?.drawingName?.toLowerCase().includes(q)) ||
+      (log.metadata?.taskTitle?.toLowerCase().includes(q)) ||
+      (log.metadata?.comments?.toLowerCase().includes(q));
+    return matchUser && matchType && matchDate && matchSearch;
+  });
 
   if (!project) {
     return (
@@ -665,28 +742,37 @@ export default function ProjectDetailView({
                               </div>
                             )}
 
-                            {/* Photo Grid */}
-                            {log.photos && log.photos.length > 0 && (
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
-                                {log.photos.map((photoUrl, pIdx) => (
-                                  <button
-                                    key={pIdx}
-                                    type="button"
-                                    onClick={() => setPreviewPhoto(photoUrl)}
-                                    className="aspect-video bg-surface-container rounded-lg overflow-hidden relative group border border-border-subtle block w-full cursor-pointer focus:outline-none"
-                                  >
-                                    <img
-                                      src={photoUrl}
-                                      alt={`Site photo ${pIdx + 1}`}
-                                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                    />
-                                    <div className="absolute inset-0 bg-ink-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                      <span className="material-symbols-outlined text-white">zoom_in</span>
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
+                            {/* Photo Grid - uses resolved signed URLs for private Supabase Storage paths */}
+                             {log.photos && log.photos.length > 0 && (() => {
+                               const displayUrls = resolvedSiteLogPhotos[log.id] || log.photos;
+                               return (
+                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
+                                   {displayUrls.map((photoUrl, pIdx) => (
+                                     <button
+                                       key={pIdx}
+                                       type="button"
+                                       onClick={() => setPreviewPhoto(photoUrl)}
+                                       className="aspect-video bg-surface-container rounded-lg overflow-hidden relative group border border-border-subtle block w-full cursor-pointer focus:outline-none"
+                                     >
+                                       {photoUrl ? (
+                                         <img
+                                           src={photoUrl}
+                                           alt={`Site photo ${pIdx + 1}`}
+                                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                           onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                                         />
+                                       ) : null}
+                                       <div className={`${photoUrl ? 'hidden' : 'flex'} absolute inset-0 items-center justify-center bg-surface-container`}>
+                                         <span className="material-symbols-outlined text-secondary text-[24px]">image_not_supported</span>
+                                       </div>
+                                       <div className="absolute inset-0 bg-ink-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                         <span className="material-symbols-outlined text-white">zoom_in</span>
+                                       </div>
+                                     </button>
+                                   ))}
+                                 </div>
+                               );
+                             })()}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
@@ -848,10 +934,83 @@ export default function ProjectDetailView({
         {/* TIMELINE TAB */}
         {activeSubTab === 'timeline' && (
           <div className="bg-surface-container-lowest p-6 rounded-xl border border-border-subtle shadow-sm animate-fade-in space-y-6">
-            <h3 className="font-bold text-ink-black text-body-lg">Project Activity History</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-bold text-ink-black text-body-lg">Project Activity History</h3>
+                <p className="text-xs text-secondary font-medium mt-0.5">Audit trail of all actions, updates, drawing revisions, and approvals on this project.</p>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-low border border-border-subtle text-xs font-bold text-secondary self-start sm:self-auto">
+                <span className="material-symbols-outlined text-[16px] text-primary">analytics</span>
+                <span>{filteredProjectTimeline.length} {filteredProjectTimeline.length === 1 ? 'event' : 'events'}</span>
+              </div>
+            </div>
 
-            <div className="relative border-l-2 border-border-subtle ml-4 pl-6 space-y-6">
-              {projectTimeline.map(log => {
+            {/* Timeline Filter Controls */}
+            <div className="flex flex-wrap items-center gap-3 p-3.5 bg-surface-container-low border border-border-subtle rounded-xl shadow-sm">
+              <div className="flex items-center gap-1.5 mr-1 text-secondary">
+                <span className="material-symbols-outlined text-[18px]">filter_list</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider">Filter:</span>
+              </div>
+
+              {/* Search */}
+              <div className="relative flex-1 min-w-[160px] max-w-xs">
+                <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[15px] text-secondary">search</span>
+                <input
+                  type="text"
+                  placeholder="Search project events..."
+                  value={timelineSearchQuery}
+                  onChange={e => setTimelineSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-surface-container-lowest border border-border-subtle rounded-lg text-xs font-medium text-ink-black placeholder:text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              {/* User Selector */}
+              <select
+                value={timelineUserFilter}
+                onChange={e => setTimelineUserFilter(e.target.value)}
+                className="py-1.5 px-3 bg-surface-container-lowest border border-border-subtle rounded-lg text-xs text-secondary font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+              >
+                <option value="all">All Team Members</option>
+                {(users || []).map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+
+              {/* Activity Type Selector */}
+              <select
+                value={timelineTypeFilter}
+                onChange={e => setTimelineTypeFilter(e.target.value)}
+                className="py-1.5 px-3 bg-surface-container-lowest border border-border-subtle rounded-lg text-xs text-secondary font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+              >
+                <option value="all">All Event Types</option>
+                <option value="project">Project Updates</option>
+                <option value="drawing">Drawings & Revisions</option>
+                <option value="approval">Approvals</option>
+                <option value="task">Tasks</option>
+                <option value="site_log">Site Logs</option>
+              </select>
+
+              {/* Date Filter */}
+              <input
+                type="date"
+                value={timelineDateFilter}
+                onChange={e => setTimelineDateFilter(e.target.value)}
+                className="py-1.5 px-3 bg-surface-container-lowest border border-border-subtle rounded-lg text-xs text-secondary font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+
+              {(timelineUserFilter !== 'all' || timelineTypeFilter !== 'all' || timelineDateFilter || timelineSearchQuery) && (
+                <button
+                  onClick={() => { setTimelineUserFilter('all'); setTimelineTypeFilter('all'); setTimelineDateFilter(''); setTimelineSearchQuery(''); }}
+                  className="text-xs text-primary font-bold hover:underline cursor-pointer ml-auto sm:ml-1"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Timeline Stream */}
+            <div className="relative border-l-2 border-border-subtle ml-4 pl-6 space-y-6 pt-2">
+              {filteredProjectTimeline.map(log => {
                 const date = new Date(log.created_at).toLocaleString('en-US', {
                   month: 'short',
                   day: 'numeric',
@@ -859,43 +1018,70 @@ export default function ProjectDetailView({
                   minute: '2-digit'
                 });
                 const userObject = users.find(u => u.id === log.user_id);
+                const m = log.metadata || {};
+                const actorName = log.user_name || userObject?.name || 'System';
+                const actorRole = log.user_role || userObject?.role;
+
+                const markerClass = 
+                  log.entity_type === 'drawing' ? 'bg-tertiary border-surface-container-lowest' :
+                  log.entity_type === 'task' ? 'bg-warning border-surface-container-lowest' :
+                  log.entity_type === 'site_log' ? 'bg-success border-surface-container-lowest' :
+                  log.entity_type === 'approval' ? 'bg-error border-surface-container-lowest' :
+                  'bg-primary border-surface-container-lowest';
 
                 return (
-                  <div key={log.id} className="relative">
+                  <div key={log.id} className="relative group">
                     {/* Circle icon marker */}
-                    <span className="absolute -left-[33px] top-1 w-4 h-4 rounded-full bg-primary border-4 border-surface-container-lowest shadow-sm"></span>
+                    <span className={`absolute -left-[31px] top-1.5 w-3.5 h-3.5 rounded-full border-2 shadow-sm transition-transform group-hover:scale-125 ${markerClass}`}></span>
 
-                    <div className="space-y-1">
-                      <p className="text-body-md font-semibold text-ink-black">
-                        {log.action}
+                    <div className="space-y-1.5 bg-surface-container-lowest hover:bg-surface-container-low/40 p-3.5 rounded-xl border border-border-subtle/70 transition-all">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-ink-black">
+                            {log.action}
+                          </p>
+                          {log.entity_type && (
+                            <span className="uppercase tracking-wider text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-surface-container border border-border-subtle text-secondary">
+                              {log.entity_type.replace('_', ' ')}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-mono text-secondary">{date}</span>
+                      </div>
+
+                      <p className="text-xs text-secondary font-medium">
+                        by <span className="font-semibold text-on-surface">{actorName}</span> {actorRole && <span className="text-[10px] uppercase text-secondary/80 font-bold">({actorRole})</span>}
                       </p>
-                      <p className="text-label-sm text-secondary">
-                        by {userObject ? `${userObject.name} (${userObject.role})` : 'System'} • {date}
-                      </p>
-                      {log.metadata && Object.keys(log.metadata).length > 0 && (
-                        <div className="bg-surface-container-low p-2.5 rounded-lg border border-border-subtle text-[11px] text-secondary mt-1.5 font-medium max-w-lg leading-relaxed">
-                          {log.metadata.projectName && <div>Project: {log.metadata.projectName}</div>}
-                          {log.metadata.oldStatus && (
+
+                      {m && Object.keys(m).length > 0 && (
+                        <div className="bg-surface-container-low/80 p-2.5 rounded-lg border border-border-subtle/80 text-xs text-secondary mt-2 font-medium max-w-xl leading-relaxed space-y-1">
+                          {m.drawingName && <div className="text-ink-black font-semibold">Drawing: <span className="font-normal text-secondary">{m.drawingName} {m.revisionNumber ? `(Rev ${m.revisionNumber})` : ''}</span></div>}
+                          {m.taskTitle && <div className="text-ink-black font-semibold">Task: <span className="font-normal text-secondary">{m.taskTitle}</span></div>}
+                          {m.oldStatus && m.newStatus && (
                             <div>
-                              Status transition: {log.metadata.oldStatus} &rarr; {log.metadata.newStatus}
+                              Status transition: <span className="font-semibold text-ink-black">{m.oldStatus}</span> &rarr; <span className="font-semibold text-ink-black">{m.newStatus}</span>
                             </div>
                           )}
-                          {log.metadata.addedUserName && (
-                            <div>Assigned Team Member: {log.metadata.addedUserName} ({log.metadata.addedUserRole})</div>
+                          {m.addedUserName && (
+                            <div>Assigned Team Member: <span className="font-semibold text-ink-black">{m.addedUserName}</span> ({m.addedUserRole})</div>
                           )}
-                          {log.metadata.removedUserName && (
-                            <div>Removed Team Member: {log.metadata.removedUserName}</div>
+                          {m.removedUserName && (
+                            <div>Removed Team Member: <span className="font-semibold text-ink-black">{m.removedUserName}</span></div>
                           )}
+                          {m.photoCount !== undefined && <div>Photos attached: <span className="font-semibold text-ink-black">{m.photoCount}</span></div>}
+                          {m.comments && <div className="italic text-on-surface">"{m.comments}"</div>}
+                          {m.notes && <div className="italic text-on-surface">Notes: "{m.notes}"</div>}
                         </div>
                       )}
                     </div>
                   </div>
                 );
               })}
-              {projectTimeline.length === 0 && (
-                <div className="text-center py-12 text-secondary relative -ml-6">
-                  <span className="material-symbols-outlined text-[40px] text-outline">history</span>
-                  <p className="text-body-md font-bold mt-2">No activity recorded for this project yet</p>
+              {filteredProjectTimeline.length === 0 && (
+                <div className="text-center py-14 text-secondary relative -ml-6 bg-surface-container-low/20 rounded-xl border border-dashed border-border-subtle">
+                  <span className="material-symbols-outlined text-[36px] text-outline">history</span>
+                  <p className="text-sm font-bold text-on-surface mt-2">No matching events found</p>
+                  <p className="text-xs text-secondary mt-0.5">Adjust filters or search criteria to view more project history</p>
                 </div>
               )}
             </div>
