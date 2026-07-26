@@ -1,5 +1,37 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore } from '@/frontend/store/store';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const loginSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(8, "Password must be at least 8 characters long"),
+  companyId: z.string().optional()
+});
+
+const signupSchema = z.object({
+  name: z.string().min(1, "Required"),
+  adminName: z.string().min(1, "Required"),
+  email: z.string().email("Invalid email format"),
+  companyName: z.string().min(1, "Required"),
+  companyAddress: z.string().min(1, "Required"),
+  companyNumber: z.string().min(1, "Required")
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  companyId: z.string().optional()
+});
+
+const resetPasswordSchema = z.object({
+  otp: z.string().min(6, "Code must be 6 digits").optional(),
+  password: z.string().min(8, "Password must be at least 8 characters long"),
+  confirmPassword: z.string()
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"]
+});
 
 export default function AuthScreens({
   activeTab,
@@ -36,9 +68,28 @@ export default function AuthScreens({
   // States for companies list and custom flows
   const [companies, setCompanies] = useState([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [forgotOtpCode, setForgotOtpCode] = useState('');
+  
+  // React Hook Form setups
+  const { register: registerLogin, handleSubmit: handleLoginRHF, formState: { errors: loginErrors }, setValue: setLoginValue } = useForm({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '', companyId: '' }
+  });
+
+  const { register: registerSignup, handleSubmit: handleSignupRHF, formState: { errors: signupErrors } } = useForm({
+    resolver: zodResolver(signupSchema),
+    defaultValues: { name: '', adminName: '', email: '', companyName: '', companyAddress: '', companyNumber: '' }
+  });
+
+  const { register: registerForgot, handleSubmit: handleForgotRHF, formState: { errors: forgotErrors } } = useForm({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: { email: '', companyId: '' }
+  });
+
+  const { register: registerReset, handleSubmit: handleResetRHF, formState: { errors: resetErrors } } = useForm({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: { otp: '', password: '', confirmPassword: '' }
+  });
+
 
   // Fetch companies list
   useEffect(() => {
@@ -52,70 +103,27 @@ export default function AuthScreens({
       .catch(err => console.error('Failed to load companies:', err));
   }, []);
 
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    await login(loginEmail, loginPassword, selectedCompanyId || null);
+  const handleLoginSubmit = async (data) => {
+    await login(data.email, data.password, data.companyId || null);
   };
 
-  const handleResetSubmit = async (e) => {
-    e.preventDefault();
-    await resetPassword(forgotEmail, selectedCompanyId || null);
+  const handleResetSubmit = async (data) => {
+    await resetPassword(data.email, data.companyId || null);
   };
 
-  const handleForceResetSubmit = async (e) => {
-    e.preventDefault();
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters long.');
-      return;
-    }
-    if (newPassword !== confirmNewPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    const ok = await changePasswordWithToken(newPassword);
-    if (ok) {
-      setNewPassword('');
-      setConfirmNewPassword('');
-    }
+  const handleForceResetSubmit = async (data) => {
+    const ok = await changePasswordWithToken(data.password);
+    // state will reset since view changes on success usually, or we can leave it
   };
 
-  const handleResetPasswordSubmit = async (e) => {
-    e.preventDefault();
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters long.');
-      return;
-    }
-    if (newPassword !== confirmNewPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    const ok = await completePasswordReset(newPassword);
-    if (ok) {
-      setNewPassword('');
-      setConfirmNewPassword('');
-    }
+  const handleResetPasswordSubmit = async (data) => {
+    const ok = await completePasswordReset(data.password);
+    // State reset will be handled by RHF's reset if we use it, but since we switch views, it's fine.
   };
 
-  const handleForgotOtpSubmit = async (e) => {
-    e.preventDefault();
-    if (!forgotOtpCode || forgotOtpCode.trim().length !== 6) {
-      setError('Please enter a valid 6-digit verification code.');
-      return;
-    }
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters long.');
-      return;
-    }
-    if (newPassword !== confirmNewPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    const ok = await completePasswordResetWithOtp(forgotEmail, forgotOtpCode.trim(), newPassword);
-    if (ok) {
-      setForgotOtpCode('');
-      setNewPassword('');
-      setConfirmNewPassword('');
-    }
+  const handleForgotOtpSubmit = async (data) => {
+    const ok = await completePasswordResetWithOtp(forgotEmail, data.otp, data.password);
+    // Optional: reset form state
   };
 
   // Password strength checks (reactive)
@@ -134,32 +142,16 @@ export default function AuthScreens({
     return Object.values(passwordChecks).filter(Boolean).length;
   }, [passwordChecks]);
 
-  const handleSignupSubmit = async (e) => {
-    e.preventDefault();
-    if (!signupForm.companyName || !signupForm.email || !signupForm.adminName || !signupForm.name || !signupForm.companyAddress || !signupForm.companyNumber) {
-      setError('All fields are required.');
-      return;
-    }
+  const handleSignupSubmit = async (data) => {
     const result = await signup(
-      signupForm.name,       // admin email (mapped to 'name' arg as before)
-      signupForm.adminName,  // admin name (new)
-      signupForm.email,
-      signupForm.companyName,
-      signupForm.companyAddress,
-      signupForm.companyNumber
+      data.name,       // admin email mapped
+      data.adminName,  
+      data.email,
+      data.companyName,
+      data.companyAddress,
+      data.companyNumber
     );
-    if (result) {
-      setSignupForm({
-        name: '',
-        adminName: '',
-        email: '',
-        companyName: '',
-        password: '',
-        confirmPassword: '',
-        companyAddress: '',
-        companyNumber: ''
-      });
-    }
+    // RHF can handle reset or we can leave it
   };
 
   return (
@@ -331,7 +323,7 @@ export default function AuthScreens({
                 </p>
               </div>
 
-              <form onSubmit={handleLoginSubmit} className="space-y-5">
+              <form onSubmit={handleLoginRHF(handleLoginSubmit)} className="space-y-5">
                 <div>
                   <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">
                     Studio Workspace (Multi-Tenant)
@@ -341,8 +333,7 @@ export default function AuthScreens({
                       corporate_fare
                     </span>
                     <select
-                      value={selectedCompanyId}
-                      onChange={(e) => setSelectedCompanyId(e.target.value)}
+                      {...registerLogin('companyId')}
                       className="w-full bg-white border border-[#c3c6d6] rounded-xl py-3 pl-11 pr-10 text-sm font-medium text-on-surface focus:outline-none focus:ring-4 focus:ring-[#004ac6]/15 focus:border-[#004ac6] transition-all appearance-none shadow-sm"
                     >
                       <option value="">-- Select Company Workspace --</option>
@@ -354,6 +345,7 @@ export default function AuthScreens({
                       unfold_more
                     </span>
                   </div>
+                  {loginErrors.companyId && <p className="text-red-500 text-xs mt-1 font-medium">{loginErrors.companyId.message}</p>}
                 </div>
 
                 <div>
@@ -366,14 +358,13 @@ export default function AuthScreens({
                     </span>
                     <input
                       type="email"
-                      required
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      className="w-full bg-white border border-[#c3c6d6] rounded-xl py-3 pl-11 pr-4 text-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-4 focus:ring-[#004ac6]/15 focus:border-[#004ac6] transition-all shadow-sm"
+                      {...registerLogin('email')}
+                      className={`w-full bg-white border ${loginErrors.email ? 'border-red-500' : 'border-[#c3c6d6]'} rounded-xl py-3 pl-11 pr-4 text-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-4 focus:ring-[#004ac6]/15 focus:border-[#004ac6] transition-all shadow-sm`}
                       placeholder="architect@studio.com"
                       autoComplete="nope"
                     />
                   </div>
+                  {loginErrors.email && <p className="text-red-500 text-xs mt-1 font-medium">{loginErrors.email.message}</p>}
                 </div>
 
                 <div>
@@ -395,10 +386,8 @@ export default function AuthScreens({
                     </span>
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      required
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className="w-full bg-white border border-[#c3c6d6] rounded-xl py-3 pl-11 pr-11 text-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-4 focus:ring-[#004ac6]/15 focus:border-[#004ac6] transition-all shadow-sm"
+                      {...registerLogin('password')}
+                      className={`w-full bg-white border ${loginErrors.password ? 'border-red-500' : 'border-[#c3c6d6]'} rounded-xl py-3 pl-11 pr-11 text-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-4 focus:ring-[#004ac6]/15 focus:border-[#004ac6] transition-all shadow-sm`}
                       placeholder="••••••••"
                       autoComplete="new-password"
                     />
@@ -412,6 +401,7 @@ export default function AuthScreens({
                       </span>
                     </button>
                   </div>
+                  {loginErrors.password && <p className="text-red-500 text-xs mt-1 font-medium">{loginErrors.password.message}</p>}
                 </div>
 
                 <div className="pt-2">
@@ -427,37 +417,26 @@ export default function AuthScreens({
                     {!loading && <span className="material-symbols-outlined text-[18px]">arrow_forward</span>}
                   </button>
                 </div>
+                
+                {/* SSO Placeholders */}
+                <div className="relative flex items-center py-2">
+                  <div className="flex-grow border-t border-border-subtle"></div>
+                  <span className="flex-shrink-0 mx-4 text-xs font-bold text-secondary uppercase">Or sign in with</span>
+                  <div className="flex-grow border-t border-border-subtle"></div>
+                </div>
+                
+                <div className="flex gap-3">
+                  <button type="button" className="flex-1 bg-white border border-[#c3c6d6] hover:bg-surface-container py-3 rounded-xl flex justify-center items-center gap-2 transition-all cursor-not-allowed opacity-70" title="Coming soon">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" className="w-5 h-5" />
+                    <span className="text-sm font-bold text-ink-black">Google</span>
+                  </button>
+                  <button type="button" className="flex-1 bg-white border border-[#c3c6d6] hover:bg-surface-container py-3 rounded-xl flex justify-center items-center gap-2 transition-all cursor-not-allowed opacity-70" title="Coming soon">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/e/ea/Microsoft_logo_%282012%29.svg" alt="Microsoft" className="w-5 h-5" />
+                    <span className="text-sm font-bold text-ink-black">Microsoft</span>
+                  </button>
+                </div>
               </form>
 
-              {/* Instant QA / Quick Account Helpers */}
-              <div className="p-3.5 rounded-xl bg-white border border-border-subtle shadow-sm flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono font-bold text-secondary uppercase">Quick Test Studio Credentials</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-[#004ac6] font-semibold">Demo Ready</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginEmail('alex.rivera@apexarchitects.com');
-                      setLoginPassword('Keystone2026!');
-                    }}
-                    className="text-xs px-2.5 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-ink-black font-semibold border border-border-subtle transition-all cursor-pointer"
-                  >
-                    Architect Demo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginEmail('sarah.chen@apexarchitects.com');
-                      setLoginPassword('Keystone2026!');
-                    }}
-                    className="text-xs px-2.5 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-ink-black font-semibold border border-border-subtle transition-all cursor-pointer"
-                  >
-                    Staff Demo
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 
@@ -473,7 +452,7 @@ export default function AuthScreens({
                 </p>
               </div>
 
-              <form onSubmit={handleSignupSubmit} className="space-y-5">
+              <form onSubmit={handleSignupRHF(handleSignupSubmit)} className="space-y-5">
                 <div>
                   <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
                     Company Name
@@ -484,13 +463,12 @@ export default function AuthScreens({
                     </span>
                     <input
                       type="text"
-                      required
-                      value={signupForm.companyName}
-                      onChange={(e) => setSignupForm({ ...signupForm, companyName: e.target.value })}
-                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                      {...registerSignup('companyName')}
+                      className={`w-full bg-white border ${signupErrors.companyName ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm`}
                       placeholder="e.g. Acme Corporation"
                     />
                   </div>
+                  {signupErrors.companyName && <p className="text-red-500 text-xs mt-1 font-medium">{signupErrors.companyName.message}</p>}
                 </div>
 
                 <div>
@@ -503,13 +481,12 @@ export default function AuthScreens({
                     </span>
                     <input
                       type="email"
-                      required
-                      value={signupForm.email}
-                      onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                      {...registerSignup('email')}
+                      className={`w-full bg-white border ${signupErrors.email ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm`}
                       placeholder="e.g. hello@acme.com"
                     />
                   </div>
+                  {signupErrors.email && <p className="text-red-500 text-xs mt-1 font-medium">{signupErrors.email.message}</p>}
                 </div>
 
                 <div>
@@ -522,13 +499,12 @@ export default function AuthScreens({
                     </span>
                     <input
                       type="text"
-                      required
-                      value={signupForm.companyAddress || ''}
-                      onChange={(e) => setSignupForm({ ...signupForm, companyAddress: e.target.value })}
-                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                      {...registerSignup('companyAddress')}
+                      className={`w-full bg-white border ${signupErrors.companyAddress ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm`}
                       placeholder="e.g. 123 Studio Way, New York, NY"
                     />
                   </div>
+                  {signupErrors.companyAddress && <p className="text-red-500 text-xs mt-1 font-medium">{signupErrors.companyAddress.message}</p>}
                 </div>
 
                 <div>
@@ -541,13 +517,12 @@ export default function AuthScreens({
                     </span>
                     <input
                       type="text"
-                      required
-                      value={signupForm.companyNumber || ''}
-                      onChange={(e) => setSignupForm({ ...signupForm, companyNumber: e.target.value })}
-                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                      {...registerSignup('companyNumber')}
+                      className={`w-full bg-white border ${signupErrors.companyNumber ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm`}
                       placeholder="e.g. +1 (555) 019-2834"
                     />
                   </div>
+                  {signupErrors.companyNumber && <p className="text-red-500 text-xs mt-1 font-medium">{signupErrors.companyNumber.message}</p>}
                 </div>
 
                 <div className="pt-4 border-t border-border-subtle">
@@ -565,13 +540,12 @@ export default function AuthScreens({
                         </span>
                         <input
                           type="text"
-                          required
-                          value={signupForm.adminName || ''}
-                          onChange={(e) => setSignupForm({ ...signupForm, adminName: e.target.value })}
-                          className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                          {...registerSignup('adminName')}
+                          className={`w-full bg-white border ${signupErrors.adminName ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm`}
                           placeholder="e.g. Jane Smith"
                         />
                       </div>
+                      {signupErrors.adminName && <p className="text-red-500 text-xs mt-1 font-medium">{signupErrors.adminName.message}</p>}
                     </div>
                     <div>
                       <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
@@ -583,13 +557,12 @@ export default function AuthScreens({
                         </span>
                         <input
                           type="email"
-                          required
-                          value={signupForm.name}
-                          onChange={(e) => setSignupForm({ ...signupForm, name: e.target.value })}
-                          className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                          {...registerSignup('name')}
+                          className={`w-full bg-white border ${signupErrors.name ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm`}
                           placeholder="e.g. admin@acme.com"
                         />
                       </div>
+                      {signupErrors.name && <p className="text-red-500 text-xs mt-1 font-medium">{signupErrors.name.message}</p>}
                     </div>
                   </div>
                 </div>
@@ -622,64 +595,7 @@ export default function AuthScreens({
             </div>
           )}
 
-          {/* 3. FORCE PASSWORD RESET VIEW (First login) */}
-          {activeTab === 'force-reset' && (
-            <div className="space-y-8 animate-fade-in">
-              <div>
-                <h1 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight mb-2">
-                  Setup New Password
-                </h1>
-                <p className="text-body-lg text-secondary font-medium">
-                  First login detected. Please set a permanent password.
-                </p>
-              </div>
 
-              <form onSubmit={handleForceResetSubmit} className="space-y-5">
-                <div>
-                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
-                    New Secure Password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={8}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
-                    placeholder="••••••••"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
-                    Confirm New Password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={8}
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
-                    placeholder="••••••••"
-                  />
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-success hover:bg-emerald-600 text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-                  >
-                    {loading && (
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    )}
-                    <span>Set Permanent Password</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
 
           {/* 4. FORGOT PASSWORD VIEW */}
           {activeTab === 'forgot' && (
@@ -699,7 +615,7 @@ export default function AuthScreens({
                 </p>
               </div>
 
-              <form onSubmit={handleResetSubmit} className="space-y-6">
+              <form onSubmit={handleForgotRHF(handleResetSubmit)} className="space-y-6">
                 <div>
                   <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
                     Company Workspace
@@ -709,8 +625,7 @@ export default function AuthScreens({
                       corporate_fare
                     </span>
                     <select
-                      value={selectedCompanyId}
-                      onChange={(e) => setSelectedCompanyId(e.target.value)}
+                      {...registerForgot('companyId')}
                       className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm appearance-none"
                     >
                       <option value="">-- Select Company (Multi-Tenant) --</option>
@@ -719,6 +634,7 @@ export default function AuthScreens({
                       ))}
                     </select>
                   </div>
+                  {forgotErrors.companyId && <p className="text-red-500 text-xs mt-1 font-medium">{forgotErrors.companyId.message}</p>}
                 </div>
 
                 <div>
@@ -731,13 +647,12 @@ export default function AuthScreens({
                     </span>
                     <input
                       type="email"
-                      required
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      className="w-full bg-white border border-border-subtle rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                      {...registerForgot('email')}
+                      className={`w-full bg-white border ${forgotErrors.email ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3 pl-10 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm`}
                       placeholder="name@keystonestudio.com"
                     />
                   </div>
+                  {forgotErrors.email && <p className="text-red-500 text-xs mt-1 font-medium">{forgotErrors.email.message}</p>}
                 </div>
 
                 <div className="pt-2">
@@ -768,7 +683,7 @@ export default function AuthScreens({
                 </p>
               </div>
 
-              <form onSubmit={handleForgotOtpSubmit} className="space-y-5">
+              <form onSubmit={handleResetRHF(handleForgotOtpSubmit)} className="space-y-5">
                 <div>
                   <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
                     6-Digit Verification Code
@@ -779,14 +694,13 @@ export default function AuthScreens({
                     </span>
                     <input
                       type="text"
-                      required
                       maxLength={6}
-                      value={forgotOtpCode}
-                      onChange={(e) => setForgotOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                      className="w-full bg-white border border-border-subtle rounded-lg py-3.5 pl-11 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-lg font-mono tracking-[0.3em] font-bold"
+                      {...registerReset('otp')}
+                      className={`w-full bg-white border ${resetErrors.otp ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3.5 pl-11 pr-4 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-lg font-mono tracking-[0.3em] font-bold`}
                       placeholder="123456"
                     />
                   </div>
+                  {resetErrors.otp && <p className="text-red-500 text-xs mt-1 font-medium">{resetErrors.otp.message}</p>}
                   <div className="flex justify-between items-center mt-2 text-xs">
                     <span className="text-secondary">Check your inbox or spam folder</span>
                     <button
@@ -806,13 +720,11 @@ export default function AuthScreens({
                   </label>
                   <input
                     type="password"
-                    required
-                    minLength={8}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                    {...registerReset('password')}
+                    className={`w-full bg-white border ${resetErrors.password ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm`}
                     placeholder="At least 8 characters"
                   />
+                  {resetErrors.password && <p className="text-red-500 text-xs mt-1 font-medium">{resetErrors.password.message}</p>}
                 </div>
 
                 <div>
@@ -821,13 +733,11 @@ export default function AuthScreens({
                   </label>
                   <input
                     type="password"
-                    required
-                    minLength={8}
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                    {...registerReset('confirmPassword')}
+                    className={`w-full bg-white border ${resetErrors.confirmPassword ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm`}
                     placeholder="Repeat new password"
                   />
+                  {resetErrors.confirmPassword && <p className="text-red-500 text-xs mt-1 font-medium">{resetErrors.confirmPassword.message}</p>}
                 </div>
 
                 <div className="pt-2 flex flex-col gap-3">
@@ -872,20 +782,18 @@ export default function AuthScreens({
                 </p>
               </div>
 
-              <form onSubmit={handleForceResetSubmit} className="space-y-5">
+              <form onSubmit={handleResetRHF(handleForceResetSubmit)} className="space-y-5">
                 <div>
                   <label className="block text-label-md font-bold text-secondary uppercase tracking-wider mb-2">
                     New Permanent Password
                   </label>
                   <input
                     type="password"
-                    required
-                    minLength={8}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                    {...registerReset('password')}
+                    className={`w-full bg-white border ${resetErrors.password ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm`}
                     placeholder="At least 8 characters"
                   />
+                  {resetErrors.password && <p className="text-red-500 text-xs mt-1 font-medium">{resetErrors.password.message}</p>}
                 </div>
 
                 <div>
@@ -894,13 +802,11 @@ export default function AuthScreens({
                   </label>
                   <input
                     type="password"
-                    required
-                    minLength={8}
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    className="w-full bg-white border border-border-subtle rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                    {...registerReset('confirmPassword')}
+                    className={`w-full bg-white border ${resetErrors.confirmPassword ? 'border-red-500' : 'border-border-subtle'} rounded-lg py-3 px-3 font-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm`}
                     placeholder="Repeat new password"
                   />
+                  {resetErrors.confirmPassword && <p className="text-red-500 text-xs mt-1 font-medium">{resetErrors.confirmPassword.message}</p>}
                 </div>
 
                 <div className="pt-2">

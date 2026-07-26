@@ -107,7 +107,8 @@ export async function POST(request) {
       company_id: user.tenant_id,
       user_id: user.id,
       role: user.role,
-      email: user.email
+      email: user.email,
+      is_super_admin: user.is_super_admin
     };
 
     const token = signJwt(jwtPayload);
@@ -140,7 +141,8 @@ export async function POST(request) {
         name: user.name,
         email: user.email,
         role: user.role,
-        status: user.status
+        status: user.status,
+        is_super_admin: user.is_super_admin
       }
     });
 

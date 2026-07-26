@@ -70,7 +70,10 @@ const migrationSql = `
   alter table public.users add column if not exists reset_otp text;
   alter table public.users add column if not exists reset_otp_expires_at timestamp with time zone;
 
-  -- 3. Force Supabase API to reload schema cache
+  -- 3. Extend notifications table
+  alter table public.notifications add column if not exists link text;
+
+  -- 4. Force Supabase API to reload schema cache
   notify pgrst, 'reload schema';
 `;
 

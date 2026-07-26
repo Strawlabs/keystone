@@ -149,6 +149,7 @@ export function getAuthContext(request) {
         tenantId: decoded.company_id,
         userId: decoded.user_id,
         role: decoded.role,
+        is_super_admin: decoded.is_super_admin,
         isJwt: true,
         isAuthenticated: true
       };

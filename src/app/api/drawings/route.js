@@ -95,7 +95,8 @@ export async function POST(request) {
         adminUser.id,
         'New Drawing Uploaded',
         `A new drawing "${name}" was uploaded by an architect for project "${project.name}".`,
-        'drawing_uploaded'
+        'drawing_uploaded',
+        'drawings'
       );
     }
 

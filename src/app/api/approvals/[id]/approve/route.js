@@ -46,7 +46,8 @@ export async function POST(request, { params }) {
         approval.submitted_by,
         'Drawing Approved',
         `Client has approved drawing "${drawing.name}". Comments: "${comments}"`,
-        'approval_response'
+        'approval_response',
+        'approvals'
       );
     }
 
@@ -58,7 +59,8 @@ export async function POST(request, { params }) {
         adminUser.id,
         'Drawing Approved',
         `Client has approved drawing "${drawing.name}".`,
-        'approval_response'
+        'approval_response',
+        'approvals'
       );
     }
 

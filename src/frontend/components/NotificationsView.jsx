@@ -114,6 +114,18 @@ export default function NotificationsView({ notifications, markNotificationRead,
                     Mark Read
                   </button>
                 )}
+                {notif.link && setTab && (
+                  <button
+                    onClick={() => {
+                      if (!notif.is_read) markNotificationRead(notif.id);
+                      setTab(notif.link);
+                    }}
+                    className="text-[10px] font-bold text-slate-300 hover:text-white transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1"
+                  >
+                    <Eye className="w-3 h-3" />
+                    View Item
+                  </button>
+                )}
                 {notif.is_read && (
                   <span className="w-2 h-2 rounded-full bg-slate-700" title="Read" />
                 )}

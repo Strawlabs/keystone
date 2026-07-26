@@ -207,7 +207,11 @@ export default function Home() {
     { id: 'saas', label: 'SaaS Admin', icon: Shield, roles: ['admin'] },
   ];
 
-  const filteredMenuItems = menuItems.filter(item => item.roles.includes(currentUser?.role));
+  const filteredMenuItems = menuItems.filter(item => {
+    if (!item.roles.includes(currentUser?.role)) return false;
+    if (item.id === 'saas' && !currentUser?.is_super_admin) return false;
+    return true;
+  });
 
   const handleOpenProjectModal = () => {
     if (isClient || isStaff) return;
@@ -527,8 +531,7 @@ export default function Home() {
       case 'settings':
         return isAdmin && <SettingsView store={store} />;
       case 'saas':
-        return isAdmin && <SaaSAdminView />;
-      // Blueprint review — accessible via drawing card click
+        return isAdmin && currentUser?.is_super_admin && <SaaSAdminView />;
       case 'blueprint-review':
         return (
           <BlueprintReviewPanel
