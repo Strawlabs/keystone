@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, supabase } from '@/backend/db/client';
 import { hashPassword, generateRandomPassword } from '@/backend/utils/auth';
-import { emailService } from '@/backend/services/gmail';
+import { emailService } from '@/backend/services/smtp';
 import { logActivity } from '@/backend/services/logger';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';

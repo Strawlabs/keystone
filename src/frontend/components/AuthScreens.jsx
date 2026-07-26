@@ -25,7 +25,7 @@ const forgotPasswordSchema = z.object({
 });
 
 const resetPasswordSchema = z.object({
-  otp: z.string().min(6, "Code must be 6 digits").optional(),
+  otp: z.string().optional().refine(val => !val || val.length >= 6, "Code must be 6 digits"),
   password: z.string().min(8, "Password must be at least 8 characters long"),
   confirmPassword: z.string()
 }).refine(data => data.password === data.confirmPassword, {

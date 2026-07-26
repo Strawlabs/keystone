@@ -3,7 +3,7 @@ import { db, supabase } from '@/backend/db/client';
 import { hashPassword, generateRandomPassword, getAuthContext } from '@/backend/utils/auth';
 import { logActivity } from '@/backend/services/logger';
 import { inviteUserSchema } from '@/backend/utils/validation';
-import { emailService } from '@/backend/services/gmail';
+import { emailService } from '@/backend/services/smtp';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
@@ -133,7 +133,7 @@ export async function POST(request) {
     }
 
     // --- Send invitation email ---
-    const loginLink = `${SITE_URL}`;
+    const loginLink = `${SITE_URL}?tab=login`;
     await sendInviteEmail(normalizedEmail, name.trim(), role, adminUser.name, demoPassword, loginLink);
 
     // --- Log activity ---

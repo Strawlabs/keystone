@@ -1,5 +1,5 @@
 import { supabase, db } from '../db/client.js';
-import { emailService } from './resend.js';
+import { emailService } from './smtp.js';
 
 export async function createNotification(firstArg, userId, title, message, type, link) {
   try {
