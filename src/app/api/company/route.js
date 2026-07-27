@@ -32,6 +32,9 @@ export async function PATCH(request) {
     if (body.logo_url !== undefined) updates.logo_url = body.logo_url;
     if (body.address !== undefined) updates.company_address = body.address;
     if (body.contact_email !== undefined) updates.company_email = body.contact_email;
+    if (body.timezone !== undefined) updates.timezone = body.timezone;
+    if (body.date_format !== undefined) updates.date_format = body.date_format;
+    if (body.notification_preferences !== undefined) updates.notification_preferences = body.notification_preferences;
 
     if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'No valid fields.' }, { status: 400 });
 

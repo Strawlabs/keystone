@@ -3,7 +3,7 @@ import { db, supabase } from '@/backend/db/client';
 import { getAuthContext, generateRandomPassword, hashPassword } from '@/backend/utils/auth';
 import { logActivity } from '@/backend/services/logger';
 import { inviteUserSchema } from '@/backend/utils/validation';
-import { emailService } from '@/backend/services/gmail';
+import { emailService } from '@/backend/services/smtp';
 
 // GET /api/users - List users for the authenticated tenant
 export async function GET(request) {

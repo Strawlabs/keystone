@@ -1,12 +1,14 @@
-import { supabase } from '../db/client.js';
+import { supabase, db } from '../db/client.js';
+import { emailService } from './smtp.js';
 
-export async function createNotification(firstArg, userId, title, message, type) {
+export async function createNotification(firstArg, userId, title, message, type, link) {
   try {
     let tenantId;
     let finalUserId = userId;
     let finalTitle = title;
     let finalMessage = message;
     let finalType = type;
+    let finalLink = link;
 
     if (typeof firstArg === 'object' && firstArg !== null && !Array.isArray(firstArg)) {
       tenantId = firstArg.tenantId;
@@ -14,6 +16,7 @@ export async function createNotification(firstArg, userId, title, message, type)
       finalTitle = firstArg.title;
       finalMessage = firstArg.message;
       finalType = firstArg.type;
+      finalLink = firstArg.link;
     } else {
       tenantId = firstArg;
     }
@@ -24,12 +27,24 @@ export async function createNotification(firstArg, userId, title, message, type)
       title: finalTitle,
       message: finalMessage,
       type: finalType,
+      link: finalLink || null,
       is_read: false
     }]).select().maybeSingle();
 
     if (error) {
       console.error('Failed to create notification:', error.message);
     }
+
+    // Try sending email
+    try {
+      const user = await db.getUser(finalUserId);
+      if (user && user.email) {
+        await emailService.sendNotificationEmail(user.email, user.name, finalTitle, finalMessage, finalLink);
+      }
+    } catch (emailErr) {
+      console.error('Failed to send notification email:', emailErr.message);
+    }
+
     return data;
   } catch (err) {
     console.error('Error in createNotification:', err.message);

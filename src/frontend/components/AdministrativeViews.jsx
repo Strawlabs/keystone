@@ -419,6 +419,8 @@ export function SettingsView({ store }) {
     logo_url: '',
     contact_email: '',
     address: '',
+    timezone: 'UTC',
+    date_format: 'YYYY-MM-DD',
   });
 
   // Sync form inputs once currentTenant is loaded asynchronously
@@ -429,7 +431,12 @@ export function SettingsView({ store }) {
         logo_url: currentTenant.logo_url || '',
         contact_email: currentTenant.company_email || '',
         address: currentTenant.company_address || '',
+        timezone: currentTenant.timezone || 'UTC',
+        date_format: currentTenant.date_format || 'YYYY-MM-DD',
       });
+      if (currentTenant.notification_preferences) {
+        setNotifSettings(currentTenant.notification_preferences);
+      }
     }
   }, [currentTenant]);
   const [notifSettings, setNotifSettings] = useState({
@@ -447,6 +454,11 @@ export function SettingsView({ store }) {
     if (form.logo_url.trim()) payload.logo_url = form.logo_url.trim();
     if (form.contact_email.trim()) payload.contact_email = form.contact_email.trim();
     if (form.address.trim()) payload.address = form.address.trim();
+    
+    payload.timezone = form.timezone;
+    payload.date_format = form.date_format;
+    payload.notification_preferences = notifSettings;
+    
     if (Object.keys(payload).length > 0) {
       await updateCompanySettings(payload);
     } else {
@@ -531,7 +543,19 @@ export function SettingsView({ store }) {
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setForm({ name: currentTenant?.name || '', logo_url: currentTenant?.logo_url || '', address: currentTenant?.address || '', contact_email: currentTenant?.contact_email || '' })}
+                onClick={() => {
+                  setForm({ 
+                    name: currentTenant?.name || '', 
+                    logo_url: currentTenant?.logo_url || '', 
+                    address: currentTenant?.company_address || '', 
+                    contact_email: currentTenant?.company_email || '',
+                    timezone: currentTenant?.timezone || 'UTC',
+                    date_format: currentTenant?.date_format || 'YYYY-MM-DD'
+                  });
+                  if (currentTenant?.notification_preferences) {
+                    setNotifSettings(currentTenant.notification_preferences);
+                  }
+                }}
                 className="py-2 px-4 bg-surface-container hover:bg-surface-container-high rounded-xl text-xs font-semibold text-secondary transition-all cursor-pointer"
               >
                 Reset
@@ -557,20 +581,28 @@ export function SettingsView({ store }) {
         <div className="grid grid-cols-2 gap-4 text-xs">
           <div>
             <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Time Zone</label>
-            <select className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer text-xs">
-              <option>Asia/Kolkata (IST +5:30)</option>
-              <option>UTC</option>
-              <option>America/New_York</option>
-              <option>Europe/London</option>
-              <option>Asia/Dubai</option>
+            <select 
+              value={form.timezone}
+              onChange={e => setForm(f => ({ ...f, timezone: e.target.value }))}
+              className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer text-xs"
+            >
+              <option value="Asia/Kolkata (IST +5:30)">Asia/Kolkata (IST +5:30)</option>
+              <option value="UTC">UTC</option>
+              <option value="America/New_York">America/New_York</option>
+              <option value="Europe/London">Europe/London</option>
+              <option value="Asia/Dubai">Asia/Dubai</option>
             </select>
           </div>
           <div>
             <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Date Format</label>
-            <select className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer text-xs">
-              <option>DD/MM/YYYY</option>
-              <option>MM/DD/YYYY</option>
-              <option>YYYY-MM-DD</option>
+            <select 
+              value={form.date_format}
+              onChange={e => setForm(f => ({ ...f, date_format: e.target.value }))}
+              className="w-full px-3 py-2 border border-border-subtle rounded-lg text-on-surface bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer text-xs"
+            >
+              <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+              <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+              <option value="YYYY-MM-DD">YYYY-MM-DD</option>
             </select>
           </div>
         </div>
@@ -596,10 +628,12 @@ export function SettingsView({ store }) {
               </div>
               <button
                 type="button"
-                onClick={() => setNotifSettings(s => ({ ...s, [key]: !s[key] }))}
+                onClick={() => {
+                  setNotifSettings(s => ({ ...s, [key]: !s[key] }));
+                }}
                 className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer ${notifSettings[key] ? 'bg-primary' : 'bg-surface-container-high'}`}
               >
-                <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${notifSettings[key] ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${notifSettings[key] ? 'translate-x-4.5' : 'translate-x-1'}`} />
               </button>
             </div>
           ))}
@@ -619,12 +653,27 @@ export function SettingsView({ store }) {
 
 // 4. Platform overview dashboard (Straw Labs Admin view)
 export function SaaSAdminView() {
-  const firms = [
-    { name: 'Keystone Studio Ltd', users: 5, storage: '1.2 GB', plan: 'Standard', status: 'active', renewal: 'Jan 2027' },
-    { name: 'Blueprint Co.', users: 3, storage: '0.8 GB', plan: 'Basic', status: 'active', renewal: 'Mar 2027' },
-    { name: 'Apex Architects', users: 8, storage: '2.8 GB', plan: 'Enterprise', status: 'active', renewal: 'Dec 2026' },
-    { name: 'Studio Nova', users: 2, storage: '0.2 GB', plan: 'Basic', status: 'suspended', renewal: 'Oct 2026' },
-  ];
+  const [firms, setFirms] = useState([]);
+  const [loadingFirms, setLoadingFirms] = useState(true);
+
+  React.useEffect(() => {
+    async function fetchFirms() {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('keystone_token') : null;
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch('/api/admin/firms', { headers });
+        if (res.ok) {
+          const data = await res.json();
+          setFirms(data.firms || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch firms:', err);
+      } finally {
+        setLoadingFirms(false);
+      }
+    }
+    fetchFirms();
+  }, []);
 
   const planStyle = {
     Standard: 'text-primary',
@@ -673,12 +722,16 @@ export function SaaSAdminView() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-surface-container-lowest border border-border-subtle p-5 rounded-xl space-y-2 shadow-sm relative overflow-hidden">
           <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Active Firms</span>
-          <p className="text-3xl font-black text-ink-black">4</p>
-          <p className="text-[10px] text-secondary font-semibold">3 active · 1 suspended</p>
+          <p className="text-3xl font-black text-ink-black">{loadingFirms ? '-' : firms.length}</p>
+          <p className="text-[10px] text-secondary font-semibold">{loadingFirms ? '-' : firms.filter(f => f.status === 'active').length} active · {loadingFirms ? '-' : firms.filter(f => f.status === 'suspended').length} suspended</p>
         </div>
         <div className="bg-surface-container-lowest border border-border-subtle p-5 rounded-xl space-y-2 shadow-sm relative overflow-hidden">
           <span className="text-[10px] text-secondary font-bold uppercase tracking-wider">Total Storage Used</span>
-          <p className="text-3xl font-black text-ink-black">5.0 GB</p>
+          <p className="text-3xl font-black text-ink-black">{loadingFirms ? '-' : firms.reduce((acc, f) => {
+            const val = parseFloat(f.storage) || 0;
+            const isMB = f.storage.includes('MB');
+            return acc + (isMB ? val / 1024 : val);
+          }, 0).toFixed(2)} GB</p>
           <p className="text-[10px] text-secondary font-semibold">of 50 GB allocated capacity</p>
         </div>
         <div className="bg-surface-container-lowest border border-border-subtle p-5 rounded-xl space-y-2 shadow-sm relative overflow-hidden">

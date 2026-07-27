@@ -51,7 +51,8 @@ export async function POST(request, { params }) {
         approval.submitted_by,
         actionText,
         `Client responded to "${drawing.name}". Status: ${actionText}. Comments: "${comments}"`,
-        'approval_response'
+        'approval_response',
+        'approvals'
       );
     }
 
@@ -63,7 +64,8 @@ export async function POST(request, { params }) {
         adminUser.id,
         actionText,
         `Client responded to "${drawing.name}". Status: ${actionText}.`,
-        'approval_response'
+        'approval_response',
+        'approvals'
       );
     }
 

@@ -1,19 +1,25 @@
 import nodemailer from 'nodemailer';
 
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-const SENDER_NAME = process.env.SENDER_NAME || 'Keystone Studio';
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_PORT = process.env.SMTP_PORT || 587;
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASSWORD = process.env.SMTP_PASSWORD;
+const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
+const SMTP_FROM_EMAIL = process.env.SMTP_FROM_EMAIL || 'onboarding@keystone.local';
+const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || 'Keystone Studio';
 
 // Build transporter lazily — only if credentials exist
 function createTransporter() {
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASSWORD) {
     return null;
   }
   return nodemailer.createTransport({
-    service: 'gmail',
+    host: SMTP_HOST,
+    port: parseInt(SMTP_PORT),
+    secure: SMTP_SECURE,
     auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
+      user: SMTP_USER,
+      pass: SMTP_PASSWORD,
     },
   });
 }
@@ -26,10 +32,10 @@ const transporter = createTransporter();
  * @returns {Promise<{success: boolean, mock?: boolean, messageId?: string}>}
  */
 export async function sendEmail({ to, subject, html }) {
-  // In dev/test, always redirect to the configured dev email override
+  // In dev/test, use DEV_EMAIL_OVERRIDE if provided, otherwise send to actual recipient
   const recipient =
-    process.env.NODE_ENV !== 'production'
-      ? process.env.DEV_EMAIL_OVERRIDE || GMAIL_USER || to
+    process.env.NODE_ENV !== 'production' && process.env.DEV_EMAIL_OVERRIDE
+      ? process.env.DEV_EMAIL_OVERRIDE
       : to;
 
   if (!transporter) {
@@ -44,20 +50,20 @@ export async function sendEmail({ to, subject, html }) {
 
   try {
     const info = await transporter.sendMail({
-      from: `${SENDER_NAME} <${GMAIL_USER}>`,
+      from: `${SMTP_FROM_NAME} <${SMTP_FROM_EMAIL}>`,
       to: recipient,
       subject,
       html,
     });
-    console.log(`[Gmail] Email sent → ${recipient} | MsgID: ${info.messageId}`);
+    console.log(`[SMTP] Email sent → ${recipient} | MsgID: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (err) {
-    console.error('[Gmail] Failed to send email:', err.message);
+    console.error('[SMTP] Failed to send email:', err.message);
     return null;
   }
 }
 
-// ─── Named email helpers (same API surface as the old resend.js) ──────────────
+// ─── Named email helpers ──────────────
 
 export const emailService = {
   /**
@@ -215,4 +221,37 @@ export const emailService = {
       `,
     });
   },
+
+  /**
+   * Send a general notification email (task assigned, approval requested, etc.)
+   */
+  sendNotificationEmail: async (email, name, title, message, link) => {
+    return sendEmail({
+      to: email,
+      subject: title,
+      html: `
+        <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #0f172a; color: #e2e8f0; border-radius: 16px;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <h1 style="font-size: 24px; font-weight: 700; color: #ffffff; margin: 0;">Keystone Studio</h1>
+          </div>
+          <h2 style="font-size: 20px; font-weight: 600; color: #ffffff; margin-bottom: 16px;">${title}</h2>
+          <p style="font-size: 14px; line-height: 1.6; color: #94a3b8; margin-bottom: 24px;">
+            Hi <strong style="color: #e2e8f0;">${name || 'there'}</strong>,<br/><br/>
+            ${message}
+          </p>
+          ${link ? `
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}${link}" style="display: inline-block; padding: 14px 32px; background: #2563eb; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; border-radius: 12px; box-shadow: 0 0 15px rgba(37,99,235,0.3);">
+              View Details
+            </a>
+          </div>
+          ` : ''}
+          <hr style="border: none; border-top: 1px solid #1e293b; margin: 24px 0;" />
+          <p style="font-size: 11px; color: #475569; text-align: center;">
+            © ${new Date().getFullYear()} Keystone Studio Inc. All rights reserved.
+          </p>
+        </div>
+      `
+    });
+  }
 };

@@ -46,7 +46,8 @@ export async function POST(request, { params }) {
         approval.submitted_by,
         'Revision Requested',
         `Client requested revisions on "${drawing.name}". Comments: "${comments}"`,
-        'approval_response'
+        'approval_response',
+        'approvals'
       );
     }
 
@@ -58,7 +59,8 @@ export async function POST(request, { params }) {
         adminUser.id,
         'Revision Requested',
         `Client requested revisions on "${drawing.name}".`,
-        'approval_response'
+        'approval_response',
+        'approvals'
       );
     }
 

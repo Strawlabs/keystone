@@ -172,6 +172,7 @@ create table public.notifications (
     title text not null,
     message text not null,
     type text not null check (type in ('approval_request', 'approval_response', 'task_assigned', 'task_completed', 'drawing_uploaded')),
+    link text,
     is_read boolean not null default false,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );

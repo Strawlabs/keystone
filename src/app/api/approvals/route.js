@@ -85,7 +85,8 @@ export async function POST(request) {
       client_id,
       'Drawing Approval Requested',
       `Architect has submitted "${drawing.name}" for your approval and review.${due_date ? ` (Due: ${due_date})` : ''}`,
-      'approval_request'
+      'approval_request',
+      'approvals'
     );
 
     return NextResponse.json({ message: 'Submitted for approval successfully', approval: newApproval });

@@ -149,6 +149,7 @@ export function getAuthContext(request) {
         tenantId: decoded.company_id,
         userId: decoded.user_id,
         role: decoded.role,
+        is_super_admin: decoded.is_super_admin,
         isJwt: true,
         isAuthenticated: true
       };
@@ -173,17 +174,19 @@ export function getAuthContext(request) {
       // ignore URL parse errors
     }
 
-    const tenantId = request.headers.get('x-tenant-id') || queryTenantId || 't1';
-    const userId = request.headers.get('x-user-id') || queryUserId || 'u1';
+    const tenantId = request.headers.get('x-tenant-id') || queryTenantId;
+    const userId = request.headers.get('x-user-id') || queryUserId;
     const userRole = request.headers.get('x-user-role') || 'admin';
     
-    return {
-      tenantId,
-      userId,
-      role: userRole,
-      isJwt: false,
-      isAuthenticated: true
-    };
+    if (tenantId && userId) {
+      return {
+        tenantId,
+        userId,
+        role: userRole,
+        isJwt: false,
+        isAuthenticated: true
+      };
+    }
   }
   
   return {

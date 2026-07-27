@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAuth } from '@/backend/db/client';
-import { emailService } from '@/backend/services/gmail.js';
+import { emailService } from '@/backend/services/smtp.js';
 
 export async function POST(request) {
   try {

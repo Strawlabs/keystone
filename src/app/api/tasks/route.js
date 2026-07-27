@@ -93,7 +93,8 @@ export async function POST(request) {
         assigned_to,
         'New Task Assigned',
         `You have been assigned a new task: "${title}". Due: ${due_date || 'No due date'}.`,
-        'task_assigned'
+        'task_assigned',
+        'tasks'
       );
     }
 
