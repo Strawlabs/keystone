@@ -1,16 +1,19 @@
 import { create } from 'zustand';
 
 // Zero-dependency API fetch wrapper to automatically attach Bearer JWT token
-const apiFetch = async (url, options = {}) => {
+export const apiFetch = async (url, options = {}) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('keystone_token') : null;
   const storeState = typeof useStore !== 'undefined' && useStore.getState ? useStore.getState() : {};
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers = {
-    'Content-Type': 'application/json',
     'x-tenant-id': storeState.currentTenantId || 't1',
     'x-user-id': storeState.currentUser?.id || 'u1',
     'x-user-role': storeState.currentUser?.role || 'admin',
     ...options.headers
   };
+  if (!isFormData && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -92,7 +95,7 @@ export const useStore = create((set, get) => ({
   dashboardStatsLoading: false, // True while /api/dashboard/stats is in-flight
   currentTenant: null, // Full profile of current firm/tenant
   currentTenantId: 't1',
-  activeTab: 'login', // Default start page is login
+  activeTab: 'landing', // Default start page is landing page from Stitch
   selectedProjectId: null,
   selectedDrawingId: null,
   selectedApprovalId: null,

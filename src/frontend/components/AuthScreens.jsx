@@ -284,6 +284,17 @@ export default function AuthScreens({
             </div>
           </div>
 
+          {/* Back to Home Link */}
+          <div className="mb-4">
+            <button
+              onClick={() => setTab('landing')}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-secondary hover:text-[#004ac6] transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+              Back to Home
+            </button>
+          </div>
+
           {/* Quick Tab Switcher Pill */}
           <div className="flex rounded-xl bg-surface-container-low p-1.5 border border-border-subtle mb-8">
             <button
@@ -427,11 +438,21 @@ export default function AuthScreens({
                 
                 <div className="flex gap-3">
                   <button type="button" className="flex-1 bg-white border border-[#c3c6d6] hover:bg-surface-container py-3 rounded-xl flex justify-center items-center gap-2 transition-all cursor-not-allowed opacity-70" title="Coming soon">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" className="w-5 h-5" />
+                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
                     <span className="text-sm font-bold text-ink-black">Google</span>
                   </button>
                   <button type="button" className="flex-1 bg-white border border-[#c3c6d6] hover:bg-surface-container py-3 rounded-xl flex justify-center items-center gap-2 transition-all cursor-not-allowed opacity-70" title="Coming soon">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/e/ea/Microsoft_logo_%282012%29.svg" alt="Microsoft" className="w-5 h-5" />
+                    <svg className="w-5 h-5" viewBox="0 0 23 23">
+                      <path fill="#f35325" d="M1 1h10v10H1z"/>
+                      <path fill="#81bc06" d="M12 1h10v10H12z"/>
+                      <path fill="#05a6f0" d="M1 12h10v10H1z"/>
+                      <path fill="#ffba08" d="M12 12h10v10H12z"/>
+                    </svg>
                     <span className="text-sm font-bold text-ink-black">Microsoft</span>
                   </button>
                 </div>
@@ -660,7 +681,7 @@ export default function AuthScreens({
                     type="submit"
                     className="w-full bg-primary hover:bg-primary-container text-white py-3.5 rounded-lg font-bold transition-all transform active:scale-[0.98] cursor-pointer shadow-sm"
                   >
-                    Send Verification Code & Link
+                    Send Verification Code &amp; Link
                   </button>
                 </div>
               </form>
@@ -676,7 +697,7 @@ export default function AuthScreens({
                   Verification Code Sent
                 </span>
                 <h1 className="font-headline-lg text-headline-lg text-ink-black font-bold tracking-tight mb-2">
-                  Verify & Reset Password
+                  Verify &amp; Reset Password
                 </h1>
                 <p className="text-body-lg text-secondary font-medium">
                   We've sent a 6-digit verification code to <span className="font-bold text-ink-black">{forgotEmail}</span>. Enter the code along with your new password below.
@@ -749,7 +770,7 @@ export default function AuthScreens({
                     {loading && (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
-                    <span>Verify Code & Save Password</span>
+                    <span>Verify Code &amp; Save Password</span>
                   </button>
                   <button
                     type="button"
@@ -818,7 +839,7 @@ export default function AuthScreens({
                     {loading && (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
-                    <span>Save & Enter Workspace</span>
+                    <span>Save &amp; Enter Workspace</span>
                   </button>
                 </div>
               </form>

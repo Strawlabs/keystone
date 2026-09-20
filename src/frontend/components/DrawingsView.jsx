@@ -359,7 +359,7 @@ export default function DrawingsView({
                 className={`group bg-surface-container-lowest rounded-xl border border-border-subtle overflow-hidden hover:shadow-xl hover:shadow-black/5 transition-all duration-300 flex flex-col h-full shadow-sm ${isDeleting ? 'opacity-50 pointer-events-none' : ''}`}
               >
                 {/* Thumbnail Preview */}
-                <div className="relative aspect-[4/3] bg-surface-container-high overflow-hidden flex items-center justify-center blueprint-grid">
+                <div className="relative aspect-[4/3] bg-surface-container-high overflow-hidden flex items-center justify-center blueprint-grid-viewer">
                   {renderFileThumb(d)}
 
                   {/* Rev Corner badge clearly indicating current/latest version */}
