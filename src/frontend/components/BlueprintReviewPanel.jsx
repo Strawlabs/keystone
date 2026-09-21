@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ZoomOut, ZoomIn, MessageSquare, X, History, Upload, CheckCircle2, AlertTriangle, ArrowLeft, FileText, Download, CloudUpload } from 'lucide-react';
+import { apiFetch } from '@/frontend/store/store';
 
 export default function BlueprintReviewPanel({
   activeDrawing,
@@ -122,7 +123,7 @@ export default function BlueprintReviewPanel({
       formData.append('file', revFile);
       formData.append('path', 'drawings');
 
-      const uploadRes = await fetch('/api/storage/upload', {
+      const uploadRes = await apiFetch('/api/storage/upload', {
         method: 'POST',
         body: formData
       });
@@ -264,7 +265,7 @@ export default function BlueprintReviewPanel({
           )}
 
           {/* Drawing Clickable Map Canvas */}
-          <div className="flex-1 overflow-auto relative blueprint-grid flex items-center justify-center p-8 min-h-[400px]">
+          <div className="flex-1 overflow-auto relative blueprint-grid-viewer flex items-center justify-center p-8 min-h-[400px]">
             <div 
               ref={drawingContainerRef}
               onClick={handleBlueprintClick}

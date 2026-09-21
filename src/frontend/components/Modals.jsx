@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useStore } from '@/frontend/store/store';
+import { useStore, apiFetch } from '@/frontend/store/store';
 import { createProjectSchema, createDrawingSchema, createSiteLogSchema } from '@/backend/utils/validation';
 
 // Check if user is in dev/mock mode (non-UUID tenant)
@@ -236,7 +236,7 @@ export default function Modals({
       formData.append('file', drawingFile);
       formData.append('path', 'drawings');
 
-      const uploadRes = await fetch('/api/storage/upload', {
+      const uploadRes = await apiFetch('/api/storage/upload', {
         method: 'POST',
         body: formData
       });
@@ -342,7 +342,7 @@ export default function Modals({
         formData.append('file', file);
         formData.append('path', 'site-logs');
 
-        const uploadRes = await fetch('/api/storage/upload', {
+        const uploadRes = await apiFetch('/api/storage/upload', {
           method: 'POST',
           body: formData
         });

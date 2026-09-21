@@ -61,6 +61,12 @@ export default function ApprovalCenterView({
   const getDrawing = (id) => drawings.find(d => d.id === id);
   const getClient = (id) => users.find(u => u.id === id);
   const getSubmitter = (id) => users.find(u => u.id === id);
+  const getProjectName = (drawing) => {
+    if (!drawing) return 'General Project';
+    if (drawing.project_name) return drawing.project_name;
+    const project = projects.find(p => p.id === drawing.project_id);
+    return project?.name || 'General Project';
+  };
 
   const handleSubmitApproval = async (e) => {
     e.preventDefault();
@@ -245,7 +251,7 @@ export default function ApprovalCenterView({
                     {drawing?.name || 'Untitled Drawing'}
                   </h3>
                   <p className="text-label-md text-primary font-bold uppercase tracking-wider mb-4">
-                    Project: {drawing?.project_name || 'General Project'}
+                    Project: {getProjectName(drawing)}
                   </p>
 
                   <div className="space-y-2.5 mb-5 text-xs text-secondary font-medium">

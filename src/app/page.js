@@ -26,6 +26,7 @@ import SiteLogsView from '@/frontend/components/SiteLogsView';
 import NotificationsView from '@/frontend/components/NotificationsView';
 import { UsersView, ActivityView, SettingsView, SaaSAdminView } from '@/frontend/components/AdministrativeViews';
 import ProjectDetailView from '@/frontend/components/ProjectDetailView';
+import LandingPage from '@/frontend/components/LandingPage';
 
 export default function Home() {
   const store = useStore();
@@ -327,6 +328,22 @@ export default function Home() {
 
   // UNAUTHENTICATED VIEWS
   if (!isAuthenticated) {
+    if (activeTab === 'landing') {
+      return (
+        <LandingPage
+          setTab={setTab}
+          onSignIn={() => setTab('login')}
+          onGetStarted={(email) => {
+            if (email) {
+              setSignupForm(prev => ({ ...prev, email }));
+            }
+            setTab('signup');
+          }}
+          setSignupForm={setSignupForm}
+        />
+      );
+    }
+
     return (
       <AuthScreens
         activeTab={activeTab}
